@@ -1,0 +1,4 @@
+CREATE UNLOGGED TABLE IF NOT EXISTS wallet_updates (
+    id UUID PRIMARY KEY,
+    balance BIGINT
+);
