@@ -16,7 +16,7 @@ import (
 const userIDKey = contextKey("user_id")
 
 // RequireAuth middleware проверяет JWT токен и добавляет userID в контекст
-func RequireAuth(authService *service.AuthService) func(http.Handler) http.Handler {
+func RequireAuth(authService service.Auth) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			log := GetLogger(r.Context())

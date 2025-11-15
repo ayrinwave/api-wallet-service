@@ -15,6 +15,12 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// Auth интерфейс для работы с аутентификацией и авторизацией
+type Auth interface {
+	Register(ctx context.Context, req models.RegisterRequest) (*models.RegisterResponse, error)
+	Login(ctx context.Context, req models.LoginRequest) (*models.LoginResponse, error)
+	ValidateToken(tokenString string) (*models.JWTClaims, error)
+}
 type AuthService struct {
 	userRepo      postgres.UserRepository
 	walletRepo    postgres.WalletRepository
@@ -31,7 +37,7 @@ func NewAuthService(
 	jwtSecret string,
 	jwtExpiration time.Duration,
 	log *slog.Logger,
-) *AuthService {
+) Auth { // ← Возвращаем интерфейс, а не конкретный тип
 	return &AuthService{
 		userRepo:      userRepo,
 		walletRepo:    walletRepo,

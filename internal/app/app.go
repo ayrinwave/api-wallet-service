@@ -31,7 +31,7 @@ type App struct {
 	pool        *pgxpool.Pool
 	logFile     *os.File
 	cfg         *config.Config
-	authService *service.AuthService
+	authService service.Auth
 }
 
 func NewApp() (*App, error) {
