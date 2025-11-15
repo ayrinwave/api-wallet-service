@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/kelseyhightower/envconfig"
@@ -11,6 +12,7 @@ import (
 type Config struct {
 	HTTPPort string `envconfig:"APP_PORT" default:"8080"`
 	DB       DBConfig
+	JWT      JWTConfig
 }
 
 type DBConfig struct {
@@ -20,6 +22,10 @@ type DBConfig struct {
 	Password string `envconfig:"POSTGRES_PASSWORD" required:"true"`
 	DBName   string `envconfig:"POSTGRES_DB"       required:"true"`
 	SSLMode  string `envconfig:"POSTGRES_SSLMODE"  default:"disable"`
+}
+type JWTConfig struct {
+	Secret     string        `envconfig:"JWT_SECRET" required:"true"`
+	Expiration time.Duration `envconfig:"JWT_EXPIRATION" default:"24h"`
 }
 
 func NewConfig() (*Config, error) {

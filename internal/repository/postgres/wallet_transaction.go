@@ -2,18 +2,15 @@ package postgres
 
 import (
 	"api_wallet/internal/custom_err"
+	"api_wallet/internal/models"
 	"api_wallet/internal/repository"
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-type PgWalletRepository struct {
-	db *pgxpool.Pool
-}
 
 // ✅ Теперь возвращает только balance (без version)
 func (r *PgWalletRepository) GetWalletBalanceForUpdateTx(ctx context.Context, tx pgx.Tx, walletID uuid.UUID) (int64, error) {
@@ -65,4 +62,36 @@ func (r *PgWalletRepository) CreateOperationTx(ctx context.Context, tx pgx.Tx, w
 		return custom_err.ErrDuplicateRequest
 	}
 	return err
+}
+
+// CreateWalletTx создает новый кошелек внутри транзакции
+// Используется при регистрации пользователя - создаем 3 кошелька атомарно
+func (r *PgWalletRepository) CreateWalletTx(ctx context.Context, tx pgx.Tx, userID uuid.UUID, currency models.Currency) (*models.Wallet, error) {
+	const op = "repository.CreateWalletTx"
+
+	walletID := uuid.New()
+	var wallet models.Wallet
+
+	err := tx.QueryRow(
+		ctx,
+		repository.CreateWalletQuery,
+		walletID,
+		userID,
+		currency,
+		0, // начальный баланс = 0
+	).Scan(
+		&wallet.ID,
+		&wallet.UserID,
+		&wallet.Currency,
+		&wallet.Balance,
+		&wallet.Version,
+		&wallet.CreatedAt,
+		&wallet.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
+
+	return &wallet, nil
 }

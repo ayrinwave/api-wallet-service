@@ -26,10 +26,12 @@ import (
 )
 
 type App struct {
-	log     *slog.Logger
-	server  *server.Server
-	pool    *pgxpool.Pool
-	logFile *os.File
+	log         *slog.Logger
+	server      *server.Server
+	pool        *pgxpool.Pool
+	logFile     *os.File
+	cfg         *config.Config
+	authService *service.AuthService
 }
 
 func NewApp() (*App, error) {
@@ -69,25 +71,66 @@ func NewApp() (*App, error) {
 		server:  srv,
 		pool:    pool,
 		logFile: loggerWithFile.LogFile, // если хочешь закрыть при shutdown
+		cfg:     cfg,
 	}, nil
 
 }
 
-func (a *App) BuildWalletLayer() {
-	txmanager := service.NewPgxTxManager(a.pool)
-
+// BuildAuthLayer собирает слой аутентификации и регистрации
+func (a *App) BuildAuthLayer() {
+	txManager := service.NewPgxTxManager(a.pool)
+	userRepo := postgres.NewUserRepository(a.pool)
 	walletRepo := postgres.NewWalletRepository(a.pool)
-	walletService := service.NewWalletService(walletRepo, txmanager)
+
+	a.authService = service.NewAuthService(
+		userRepo,
+		walletRepo,
+		txManager,
+		a.cfg.JWT.Secret,
+		a.cfg.JWT.Expiration,
+		a.log,
+	)
+
+	authHandler := handlers.NewAuthHandler(a.authService)
+
+	// Публичные маршруты (без JWT)
+	a.server.Router.Route("/api/v1", func(r chi.Router) {
+		r.Post("/register", authHandler.Register)
+		r.Post("/login", authHandler.Login)
+	})
+
+	a.log.Info("слой 'auth' собран и маршруты зарегистрированы")
+}
+
+// BuildWalletLayer собирает слой работы с кошельками
+func (a *App) BuildWalletLayer() {
+	if a.authService == nil {
+		a.log.Error("authService not initialized, call BuildAuthLayer first")
+		panic("authService not initialized")
+	}
+
+	txManager := service.NewPgxTxManager(a.pool)
+	walletRepo := postgres.NewWalletRepository(a.pool)
+	walletService := service.NewWalletService(walletRepo, txManager)
 	walletHandler := handlers.NewWalletHandler(walletService)
 
+	// Защищенные маршруты (требуют JWT)
 	a.server.Router.Route("/api/v1", func(r chi.Router) {
+		// Применяем middleware для проверки JWT
+		r.Use(middlew.RequireAuth(a.authService))
+
+		// Wallet endpoints
 		r.Get("/wallets/{walletID}", walletHandler.GetWalletByID)
 		r.Post("/wallet", walletHandler.UpdateBalance)
+
+		// TODO: Добавить новые endpoints:
+		// r.Get("/balance", walletHandler.GetBalance)
+		// r.Post("/wallet/deposit", walletHandler.Deposit)
+		// r.Post("/wallet/withdraw", walletHandler.Withdraw)
 	})
 
 	a.log.Info("слой 'wallet' собран и маршруты зарегистрированы")
 }
-
 func (a *App) Run() error {
 	a.log.Info("сервер запускается")
 
