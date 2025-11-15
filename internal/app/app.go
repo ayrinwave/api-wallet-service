@@ -31,7 +31,7 @@ type App struct {
 	pool        *pgxpool.Pool
 	logFile     *os.File
 	cfg         *config.Config
-	authService service.Auth
+	authService service.Auth // ← Используем интерфейс
 }
 
 func NewApp() (*App, error) {
@@ -61,6 +61,7 @@ func NewApp() (*App, error) {
 	srv := server.NewServer(cfg.HTTPPort)
 	log.Info("сервер инициализирован", slog.String("port", cfg.HTTPPort))
 
+	// Middlewares
 	srv.Router.Use(middleware.RequestID)
 	srv.Router.Use(middlew.WithLogger(log))
 	srv.Router.Use(middleware.RealIP)
@@ -70,10 +71,9 @@ func NewApp() (*App, error) {
 		log:     log,
 		server:  srv,
 		pool:    pool,
-		logFile: loggerWithFile.LogFile, // если хочешь закрыть при shutdown
+		logFile: loggerWithFile.LogFile,
 		cfg:     cfg,
 	}, nil
-
 }
 
 // BuildAuthLayer собирает слой аутентификации и регистрации
@@ -94,10 +94,8 @@ func (a *App) BuildAuthLayer() {
 	authHandler := handlers.NewAuthHandler(a.authService)
 
 	// Публичные маршруты (без JWT)
-	a.server.Router.Route("/api/v1", func(r chi.Router) {
-		r.Post("/register", authHandler.Register)
-		r.Post("/login", authHandler.Login)
-	})
+	a.server.Router.Post("/api/v1/register", authHandler.Register)
+	a.server.Router.Post("/api/v1/login", authHandler.Login)
 
 	a.log.Info("слой 'auth' собран и маршруты зарегистрированы")
 }
@@ -115,22 +113,21 @@ func (a *App) BuildWalletLayer() {
 	walletHandler := handlers.NewWalletHandler(walletService)
 
 	// Защищенные маршруты (требуют JWT)
-	a.server.Router.Route("/api/v1", func(r chi.Router) {
+	a.server.Router.Group(func(r chi.Router) {
 		// Применяем middleware для проверки JWT
 		r.Use(middlew.RequireAuth(a.authService))
 
 		// Wallet endpoints
-		r.Get("/wallets/{walletID}", walletHandler.GetWalletByID)
-		r.Post("/wallet", walletHandler.UpdateBalance)
-
-		// TODO: Добавить новые endpoints:
-		// r.Get("/balance", walletHandler.GetBalance)
-		// r.Post("/wallet/deposit", walletHandler.Deposit)
-		// r.Post("/wallet/withdraw", walletHandler.Withdraw)
+		r.Get("/api/v1/wallets/{walletID}", walletHandler.GetWalletByID)
+		r.Post("/api/v1/wallet", walletHandler.UpdateBalance)
+		r.Get("/api/v1/balance", walletHandler.GetBalance)
+		r.Post("/api/v1/wallet/deposit", walletHandler.Deposit)
+		r.Post("/api/v1/wallet/withdraw", walletHandler.Withdraw)
 	})
 
 	a.log.Info("слой 'wallet' собран и маршруты зарегистрированы")
 }
+
 func (a *App) Run() error {
 	a.log.Info("сервер запускается")
 
