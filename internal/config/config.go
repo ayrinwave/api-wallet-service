@@ -13,6 +13,7 @@ type Config struct {
 	HTTPPort string `envconfig:"APP_PORT" default:"8080"`
 	DB       DBConfig
 	JWT      JWTConfig
+	GRPC     GRPCConfig
 }
 
 type DBConfig struct {
@@ -26,6 +27,11 @@ type DBConfig struct {
 type JWTConfig struct {
 	Secret     string        `envconfig:"JWT_SECRET" required:"true"`
 	Expiration time.Duration `envconfig:"JWT_EXPIRATION" default:"24h"`
+}
+
+type GRPCConfig struct {
+	ExchangerAddr string        `envconfig:"EXCHANGER_GRPC_ADDR" default:"localhost:50051"`
+	Timeout       time.Duration `envconfig:"GRPC_TIMEOUT" default:"5s"`
 }
 
 func NewConfig() (*Config, error) {
