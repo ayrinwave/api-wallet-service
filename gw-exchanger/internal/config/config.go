@@ -9,7 +9,7 @@ import (
 )
 
 type Config struct {
-	GRPCPort string `envconfig:"GPRC_PORT" default:"50051"`
+	GRPCPort string `envconfig:"GRPC_PORT" default:"50051"`
 	DB       DBConfig
 }
 

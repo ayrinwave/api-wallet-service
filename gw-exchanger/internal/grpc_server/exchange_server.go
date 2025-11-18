@@ -59,6 +59,11 @@ func (s *ExchangeServer) GetExchangeRateForCurrency(ctx context.Context, req *pb
 		slog.String("from", req.FromCurrency),
 		slog.String("to", req.ToCurrency))
 
+	validCurrencies := map[string]bool{"USD": true, "RUB": true, "EUR": true}
+	if !validCurrencies[req.FromCurrency] || !validCurrencies[req.ToCurrency] {
+		return nil, fmt.Errorf("invalid currency")
+	}
+
 	// Получаем курсы обеих валют
 	fromRate, err := s.storage.GetRateByCurrency(ctx, req.FromCurrency)
 	if err != nil {

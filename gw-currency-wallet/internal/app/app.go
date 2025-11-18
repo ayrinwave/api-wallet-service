@@ -39,7 +39,7 @@ type App struct {
 }
 
 func NewApp() (*App, error) {
-	loggerWithFile := logger.NewLogger()
+	loggerWithFile := logger.NewLoggerWithFile("wallet.log")
 	log := loggerWithFile.Logger
 
 	log.Info("инициализация приложения")
@@ -62,6 +62,28 @@ func NewApp() (*App, error) {
 	}
 	log.Info("подключение к базе данных установлено")
 
+	// ✅ Инициализация gRPC client
+	log.Info("подключение к gRPC exchanger сервису", slog.String("addr", cfg.GRPC.ExchangerAddr))
+	grpcClient, err := grpc_client.NewExchangerClient(cfg.GRPC.ExchangerAddr, cfg.GRPC.Timeout, log)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка подключения к exchanger gRPC: %w", err)
+	}
+	log.Info("gRPC client инициализирован")
+
+	// ✅ Инициализация Kafka producer
+	var kafkaProducer kafka.Producer
+	if cfg.Kafka.Enabled {
+		log.Info("инициализация kafka producer", slog.Any("brokers", cfg.Kafka.Brokers))
+		kafkaProducer, err = kafka.NewKafkaProducer(cfg.Kafka.Brokers, cfg.Kafka.Topic, log)
+		if err != nil {
+			log.Error("ошибка инициализации kafka, используется no-op producer", slog.String("error", err.Error()))
+			kafkaProducer = kafka.NewNoOpProducer(log)
+		}
+	} else {
+		log.Info("kafka отключен в конфигурации")
+		kafkaProducer = kafka.NewNoOpProducer(log)
+	}
+
 	srv := server.NewServer(cfg.HTTPPort)
 	log.Info("сервер инициализирован", slog.String("port", cfg.HTTPPort))
 
@@ -72,11 +94,13 @@ func NewApp() (*App, error) {
 	srv.Router.Use(middleware.Recoverer)
 
 	return &App{
-		log:     log,
-		server:  srv,
-		pool:    pool,
-		logFile: loggerWithFile.LogFile,
-		cfg:     cfg,
+		log:            log,
+		server:         srv,
+		pool:           pool,
+		logFile:        loggerWithFile.LogFile,
+		cfg:            cfg,
+		exchangeClient: grpcClient,
+		kafkaProducer:  kafkaProducer,
 	}, nil
 }
 

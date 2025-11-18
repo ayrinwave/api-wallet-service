@@ -7,6 +7,7 @@ import (
 	"gw-exchanger/internal/db"
 	"gw-exchanger/internal/grpc_server"
 	"gw-exchanger/internal/storage/postgres"
+	"gw-exchanger/pkg/logger"
 	pb "gw-exchanger/proto-exchange"
 	"log/slog"
 	"net"
@@ -28,9 +29,8 @@ type App struct {
 
 func NewApp() (*App, error) {
 	// Инициализация логгера
-	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
+	loggerWithFile := logger.NewLoggerWithFile("exchanger.log")
+	log := loggerWithFile.Logger
 
 	log.Info("инициализация gw-exchanger приложения")
 

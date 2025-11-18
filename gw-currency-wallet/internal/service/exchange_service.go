@@ -100,7 +100,7 @@ func (s *ExchangeService) GetExchangeRates(ctx context.Context) (map[string]floa
 	}
 	s.cache[cacheKey] = CachedRate{Timestamp: now}
 	s.cacheMutex.Unlock()
-	
+
 	s.log.Debug("курсы обновлены в кэше")
 
 	return resp.Rates, nil
@@ -266,6 +266,37 @@ func (s *ExchangeService) ExchangeCurrency(ctx context.Context, userID uuid.UUID
 			}, nil
 		}
 		return nil, fmt.Errorf("%s: %w", op, err)
+	}
+
+	// ✅ НОВОЕ: Отправка события в Kafka для крупных переводов (>= 30000)
+	const largeTransferThreshold = 30000.0
+	if req.Amount >= largeTransferThreshold || exchangedAmount >= largeTransferThreshold {
+		event := models.LargeTransferEvent{
+			TransactionID: req.RequestID,
+			UserID:        userID,
+			FromCurrency:  string(req.FromCurrency),
+			ToCurrency:    string(req.ToCurrency),
+			Amount:        req.Amount,
+			ExchangedAmt:  exchangedAmount,
+			Rate:          rate,
+			Timestamp:     time.Now(),
+		}
+
+		// Отправляем асинхронно, чтобы не блокировать ответ клиенту
+		go func() {
+			kafkaCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			if err := s.kafkaProducer.SendLargeTransferEvent(kafkaCtx, event); err != nil {
+				s.log.Error("ошибка отправки события в kafka",
+					slog.String("transaction_id", req.RequestID),
+					slog.String("error", err.Error()))
+			} else {
+				s.log.Info("событие о крупном переводе отправлено в kafka",
+					slog.String("transaction_id", req.RequestID),
+					slog.Float64("amount", req.Amount))
+			}
+		}()
 	}
 
 	return &models.ExchangeResponse{
