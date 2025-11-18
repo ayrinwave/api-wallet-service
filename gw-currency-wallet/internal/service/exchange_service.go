@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"gw-currency-wallet/internal/custom_err"
 	"gw-currency-wallet/internal/grpc_client"
+	"gw-currency-wallet/internal/kafka"
 	"gw-currency-wallet/internal/models"
 	"gw-currency-wallet/internal/repository/postgres"
 	"log/slog"
@@ -31,6 +32,7 @@ type ExchangeService struct {
 	walletRepo      postgres.WalletRepository
 	txManager       TxManager
 	grpcClient      grpc_client.ExchangerClient
+	kafkaProducer   kafka.Producer
 	cache           map[string]CachedRate
 	cacheMutex      sync.RWMutex
 	cacheExpiration time.Duration
@@ -41,6 +43,7 @@ func NewExchangeService(
 	walletRepo postgres.WalletRepository,
 	txManager TxManager,
 	grpcClient grpc_client.ExchangerClient,
+	kafkaProducer kafka.Producer,
 	cacheExpiration time.Duration,
 	log *slog.Logger,
 ) Exchange {
@@ -48,6 +51,7 @@ func NewExchangeService(
 		walletRepo:      walletRepo,
 		txManager:       txManager,
 		grpcClient:      grpcClient,
+		kafkaProducer:   kafkaProducer,
 		cache:           make(map[string]CachedRate),
 		cacheExpiration: cacheExpiration,
 		log:             log,
@@ -96,7 +100,7 @@ func (s *ExchangeService) GetExchangeRates(ctx context.Context) (map[string]floa
 	}
 	s.cache[cacheKey] = CachedRate{Timestamp: now}
 	s.cacheMutex.Unlock()
-
+	
 	s.log.Debug("курсы обновлены в кэше")
 
 	return resp.Rates, nil

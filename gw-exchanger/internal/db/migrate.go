@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres" // ← Драйвер БД
+	_ "github.com/golang-migrate/migrate/v4/source/file"       // ← Драйвер файлов (ВАЖНО!)
 )
 
 // RunMigrations выполняет миграции базы данных
@@ -26,10 +28,9 @@ func RunMigrations(dsn string, migrationsPath string) error {
 	}
 
 	version, dirty, err := m.Version()
-	if err != nil && err != migrate.ErrNilVersion {
+	if err != nil {
 		return fmt.Errorf("ошибка при проверке версии миграций: %w", err)
 	}
-
 	if dirty {
 		return fmt.Errorf("обнаружена 'грязная' миграция версии %d. Исправьте вручную", version)
 	}

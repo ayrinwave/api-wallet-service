@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"gw-currency-wallet/internal/api/middlew"
+	"gw-currency-wallet/internal/grpc_client"
+	"gw-currency-wallet/internal/kafka"
 	"gw-currency-wallet/internal/repository/postgres"
 	"gw-currency-wallet/pkg/logger"
 	"log/slog"
@@ -26,12 +28,14 @@ import (
 )
 
 type App struct {
-	log         *slog.Logger
-	server      *server.Server
-	pool        *pgxpool.Pool
-	logFile     *os.File
-	cfg         *config.Config
-	authService service.Auth // ← Используем интерфейс
+	log            *slog.Logger
+	server         *server.Server
+	pool           *pgxpool.Pool
+	logFile        *os.File
+	cfg            *config.Config
+	authService    service.Auth
+	exchangeClient grpc_client.ExchangerClient
+	kafkaProducer  kafka.Producer
 }
 
 func NewApp() (*App, error) {
@@ -126,6 +130,47 @@ func (a *App) BuildWalletLayer() {
 	})
 
 	a.log.Info("слой 'wallet' собран и маршруты зарегистрированы")
+}
+
+// BuildExchangeLayer собирает слой обмена валют
+func (a *App) BuildExchangeLayer() {
+	if a.authService == nil {
+		a.log.Error("authService not initialized, call BuildAuthLayer first")
+		panic("authService not initialized")
+	}
+	if a.exchangeClient == nil {
+		a.log.Error("exchangeClient not initialized")
+		panic("exchangeClient not initialized")
+	}
+	if a.kafkaProducer == nil {
+		a.log.Error("kafkaProducer not initialized")
+		panic("kafkaProducer not initialized")
+	}
+
+	txManager := service.NewPgxTxManager(a.pool)
+	walletRepo := postgres.NewWalletRepository(a.pool)
+
+	// Создаем Exchange Service с кэшированием на 5 минут
+	exchangeService := service.NewExchangeService(
+		walletRepo,
+		txManager,
+		a.exchangeClient,
+		a.kafkaProducer, // ← Добавляем Kafka producer
+		5*time.Minute,   // Cache expiration
+		a.log,
+	)
+
+	exchangeHandler := handlers.NewExchangeHandler(exchangeService)
+
+	// Защищенные маршруты (требуют JWT)
+	a.server.Router.Group(func(r chi.Router) {
+		r.Use(middlew.RequireAuth(a.authService))
+
+		r.Get("/api/v1/exchange/rates", exchangeHandler.GetExchangeRates)
+		r.Post("/api/v1/exchange", exchangeHandler.ExchangeCurrency)
+	})
+
+	a.log.Info("слой 'exchange' собран и маршруты зарегистрированы")
 }
 
 func (a *App) Run() error {

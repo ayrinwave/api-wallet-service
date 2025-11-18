@@ -14,6 +14,7 @@ type Config struct {
 	DB       DBConfig
 	JWT      JWTConfig
 	GRPC     GRPCConfig
+	Kafka    KafkaConfig
 }
 
 type DBConfig struct {
@@ -32,6 +33,11 @@ type JWTConfig struct {
 type GRPCConfig struct {
 	ExchangerAddr string        `envconfig:"EXCHANGER_GRPC_ADDR" default:"localhost:50051"`
 	Timeout       time.Duration `envconfig:"GRPC_TIMEOUT" default:"5s"`
+}
+type KafkaConfig struct {
+	Brokers []string `envconfig:"KAFKA_BROKERS" default:"localhost:9092"`
+	Topic   string   `envconfig:"KAFKA_TOPIC" default:"large-transfers"`
+	Enabled bool     `envconfig:"KAFKA_ENABLED" default:"true"`
 }
 
 func NewConfig() (*Config, error) {

@@ -1,6 +1,9 @@
 package storage
 
-import "context"
+import (
+	"context"
+	"gw-exchanger/internal/models"
+)
 
 // Storage интерфейс для работы с курсами валют
 type Storage interface {

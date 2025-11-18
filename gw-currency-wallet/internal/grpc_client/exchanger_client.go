@@ -6,9 +6,10 @@ import (
 	"log/slog"
 	"time"
 
+	pb "gw-exchanger/proto-exchange"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	pb "gw-exchanger/proto-exchange"
 )
 
 // ExchangeRatesResponse структура для ответа с курсами валют
@@ -73,8 +74,6 @@ func (c *grpcExchangerClient) GetExchangeRates(ctx context.Context) (*ExchangeRa
 
 	c.log.Debug("запрос курсов валют через gRPC")
 
-	// TODO: Раскомментируйте после генерации proto файлов
-
 	resp, err := c.client.GetExchangeRates(ctx, &pb.Empty{})
 	if err != nil {
 		c.log.Error("ошибка получения курсов", slog.String("op", op), slog.String("error", err.Error()))
@@ -83,18 +82,14 @@ func (c *grpcExchangerClient) GetExchangeRates(ctx context.Context) (*ExchangeRa
 
 	c.log.Debug("получены курсы валют", slog.Any("rates", resp.Rates))
 
-	return &ExchangeRatesResponse{
-		Rates: resp.Rates,
-	}, nil
+	// Конвертируем map[string]float32 → map[string]float64
+	rates := make(map[string]float64)
+	for currency, rate := range resp.Rates {
+		rates[currency] = float64(rate)
+	}
 
-	// ВРЕМЕННАЯ ЗАГЛУШКА - удалите после интеграции с реальным gRPC сервисом
-	c.log.Warn("используется заглушка для курсов валют")
 	return &ExchangeRatesResponse{
-		Rates: map[string]float64{
-			"USD": 1.0,
-			"RUB": 95.5,
-			"EUR": 0.92,
-		},
+		Rates: rates,
 	}, nil
 }
 
@@ -108,8 +103,6 @@ func (c *grpcExchangerClient) GetExchangeRateForCurrency(ctx context.Context, fr
 	c.log.Debug("запрос курса валюты",
 		slog.String("from", from),
 		slog.String("to", to))
-
-	// TODO: Раскомментируйте после генерации proto файлов
 
 	resp, err := c.client.GetExchangeRateForCurrency(ctx, &pb.CurrencyRequest{
 		FromCurrency: from,
@@ -133,34 +126,6 @@ func (c *grpcExchangerClient) GetExchangeRateForCurrency(ctx context.Context, fr
 		FromCurrency: resp.FromCurrency,
 		ToCurrency:   resp.ToCurrency,
 		Rate:         float64(resp.Rate),
-	}, nil
-
-	// ВРЕМЕННАЯ ЗАГЛУШКА - удалите после интеграции с реальным gRPC сервисом
-	c.log.Warn("используется заглушка для курса валюты")
-
-	// Простая логика расчета курса из базовых значений
-	rates := map[string]float64{
-		"USD": 1.0,
-		"RUB": 95.5,
-		"EUR": 0.92,
-	}
-
-	fromRate, okFrom := rates[from]
-	toRate, okTo := rates[to]
-
-	if !okFrom || !okTo {
-		return nil, fmt.Errorf("%s: unsupported currency pair %s/%s", op, from, to)
-	}
-
-	// Курс = toRate / fromRate
-	// Например: USD -> RUB = 95.5 / 1.0 = 95.5
-	// EUR -> USD = 1.0 / 0.92 = 1.087
-	rate := toRate / fromRate
-
-	return &ExchangeRateResponse{
-		FromCurrency: from,
-		ToCurrency:   to,
-		Rate:         rate,
 	}, nil
 }
 
