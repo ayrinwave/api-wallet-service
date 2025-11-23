@@ -2,3 +2,9 @@
 gw-currency-wallet/.idea/
 
 
+**/*_test.go
+
+#не игнорировать тесты в папке service
+!gw-currency-wallet/internal/service/*_test.go
+
+!gw-currency-wallet/internal/service/**/*.go

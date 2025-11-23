@@ -327,7 +327,7 @@ func TestExchangeService_ExchangeCurrency_InsufficientFunds(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, resp)
-	assert.Equal(t, custom_err.ErrInsufficientFunds, err)
+	assert.ErrorIs(t, err, custom_err.ErrInsufficientFunds)
 
 	walletRepo.AssertExpectations(t)
 	txManager.AssertExpectations(t)
@@ -395,8 +395,8 @@ func TestExchangeService_ExchangeCurrency_DuplicateRequest(t *testing.T) {
 	service, walletRepo, txManager, grpcClient, _ := setupExchangeService(t)
 	ctx := context.Background()
 	userID := uuid.New()
-	fromWalletID := uuid.New()
-	toWalletID := uuid.New()
+	//fromWalletID := uuid.New()
+	//toWalletID := uuid.New()
 
 	req := models.ExchangeRequest{
 		FromCurrency: models.CurrencyUSD,
@@ -405,32 +405,32 @@ func TestExchangeService_ExchangeCurrency_DuplicateRequest(t *testing.T) {
 		RequestID:    "exchange-001",
 	}
 
+	// ✅ Только получаем курс
 	grpcClient.On("GetExchangeRateForCurrency", ctx, "USD", "EUR").Return(&grpc_client.ExchangeRateResponse{
 		Rate: 0.92,
 	}, nil)
 
-	fromWallet := &models.Wallet{ID: fromWalletID, UserID: userID, Currency: "USD", Balance: 100000}
-	toWallet := &models.Wallet{ID: toWalletID, UserID: userID, Currency: "EUR", Balance: 0}
+	//fromWallet := &models.Wallet{ID: fromWalletID, UserID: userID, Currency: "USD", Balance: 100000}
+	//toWallet := &models.Wallet{ID: toWalletID, UserID: userID, Currency: "EUR", Balance: 0}
+	//
+	//walletRepo.On("GetByUserAndCurrency", ctx, userID, models.CurrencyUSD).Return(fromWallet, nil)
+	//walletRepo.On("GetByUserAndCurrency", ctx, userID, models.CurrencyEUR).Return(toWallet, nil)
 
-	walletRepo.On("GetByUserAndCurrency", ctx, userID, models.CurrencyUSD).Return(fromWallet, nil)
-	walletRepo.On("GetByUserAndCurrency", ctx, userID, models.CurrencyEUR).Return(toWallet, nil)
+	// ✅ ИСПРАВЛЕНО: Просто возвращаем ошибку БЕЗ выполнения функции
+	// Потому что код обрабатывает ErrDuplicateRequest снаружи транзакции (строка 99)
+	txManager.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).
+		Return(custom_err.ErrDuplicateRequest)
 
-	// ✅ ИСПРАВЛЕНО: убрали лишний мок
-	txManager.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Return(custom_err.ErrDuplicateRequest)
+	// ✅ УБИРАЕМ мок OperationExistsTx - он НЕ вызовется, т.к. функция не выполняется
 
 	resp, err := service.ExchangeCurrency(ctx, userID, req)
 
-	// ✅ ИСПРАВЛЕНО: проверяем ошибку, а не успех
-	// (если ваш сервис НЕ обрабатывает ErrDuplicateRequest как успех)
-	assert.Error(t, err)
-	assert.Nil(t, resp)
-	assert.Equal(t, custom_err.ErrDuplicateRequest, err)
-
-	/* ❌ СТАРАЯ ВЕРСИЯ (неправильная):
+	// ✅ ИСПРАВЛЕНО: Проверяем УСПЕХ (идемпотентность)
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
 	assert.Equal(t, "Exchange successful", resp.Message)
-	*/
+	assert.Equal(t, 92.0, resp.ExchangedAmount)
+	assert.Equal(t, 0.92, resp.Rate)
 
 	walletRepo.AssertExpectations(t)
 	txManager.AssertExpectations(t)

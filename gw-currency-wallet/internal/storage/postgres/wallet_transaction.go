@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"gw-currency-wallet/internal/custom_err"
 	"gw-currency-wallet/internal/models"
-	"gw-currency-wallet/internal/repository"
+	"gw-currency-wallet/internal/storage"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -16,7 +16,7 @@ import (
 func (r *PgWalletRepository) GetWalletBalanceForUpdateTx(ctx context.Context, tx pgx.Tx, walletID uuid.UUID) (int64, error) {
 	var balance int64
 	err := tx.QueryRow(ctx,
-		repository.GetWalletStateQuery,
+		storage.GetWalletStateQuery,
 		walletID,
 	).Scan(&balance)
 	return balance, err
@@ -25,7 +25,7 @@ func (r *PgWalletRepository) GetWalletBalanceForUpdateTx(ctx context.Context, tx
 // ✅ НОВЫЙ метод - упрощённый UPDATE без version
 func (r *PgWalletRepository) UpdateBalanceTx(ctx context.Context, tx pgx.Tx, walletID uuid.UUID, newBalance int64) error {
 	res, err := tx.Exec(ctx,
-		repository.UpdateWalletBalanceQuery,
+		storage.UpdateWalletBalanceQuery,
 		newBalance,
 		walletID,
 	)
@@ -49,13 +49,13 @@ func (r *PgWalletRepository) UpdateBalanceTx(ctx context.Context, tx pgx.Tx, wal
 
 func (r *PgWalletRepository) OperationExistsTx(ctx context.Context, tx pgx.Tx, requestID string) (bool, error) {
 	var exists bool
-	err := tx.QueryRow(ctx, repository.CheckOperationExistsQuery, requestID).Scan(&exists)
+	err := tx.QueryRow(ctx, storage.CheckOperationExistsQuery, requestID).Scan(&exists)
 	return exists, err
 }
 
 func (r *PgWalletRepository) CreateOperationTx(ctx context.Context, tx pgx.Tx, walletID uuid.UUID, amount int64, requestID string) error {
 	_, err := tx.Exec(ctx,
-		repository.CreateOperationQuery,
+		storage.CreateOperationQuery,
 		walletID, amount, requestID,
 	)
 	if pgerr, ok := err.(*pgconn.PgError); ok && pgerr.Code == "23505" {
@@ -67,14 +67,14 @@ func (r *PgWalletRepository) CreateOperationTx(ctx context.Context, tx pgx.Tx, w
 // CreateWalletTx создает новый кошелек внутри транзакции
 // Используется при регистрации пользователя - создаем 3 кошелька атомарно
 func (r *PgWalletRepository) CreateWalletTx(ctx context.Context, tx pgx.Tx, userID uuid.UUID, currency models.Currency) (*models.Wallet, error) {
-	const op = "repository.CreateWalletTx"
+	const op = "storage.CreateWalletTx"
 
 	walletID := uuid.New()
 	var wallet models.Wallet
 
 	err := tx.QueryRow(
 		ctx,
-		repository.CreateWalletQuery,
+		storage.CreateWalletQuery,
 		walletID,
 		userID,
 		currency,

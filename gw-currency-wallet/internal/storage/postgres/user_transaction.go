@@ -4,19 +4,19 @@ import (
 	"context"
 	"fmt"
 	"gw-currency-wallet/internal/models"
-	"gw-currency-wallet/internal/repository"
+	"gw-currency-wallet/internal/storage"
 
 	"github.com/jackc/pgx/v5"
 )
 
 // CreateTx создает пользователя внутри транзакции
 func (r *PgUserRepository) CreateTx(ctx context.Context, tx pgx.Tx, user *models.User) (*models.User, error) {
-	const op = "repository.CreateTx"
+	const op = "storage.CreateTx"
 
 	var createdUser models.User
 	err := tx.QueryRow(
 		ctx,
-		repository.CreateUserQuery,
+		storage.CreateUserQuery,
 		user.ID,
 		user.Username,
 		user.Email,

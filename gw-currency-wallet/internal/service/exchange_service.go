@@ -7,7 +7,7 @@ import (
 	"gw-currency-wallet/internal/grpc_client"
 	"gw-currency-wallet/internal/kafka"
 	"gw-currency-wallet/internal/models"
-	"gw-currency-wallet/internal/repository/postgres"
+	"gw-currency-wallet/internal/storage/postgres"
 	"log/slog"
 	"sync"
 	"time"

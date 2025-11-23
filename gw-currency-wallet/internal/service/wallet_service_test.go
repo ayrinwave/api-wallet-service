@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -223,17 +224,22 @@ func TestWalletService_Deposit_DuplicateRequest(t *testing.T) {
 
 	repo.On("GetByUserAndCurrency", ctx, userID, req.Currency).Return(wallet, nil)
 
-	// Мокаем транзакцию - операция уже существует
-	txManager.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Return(custom_err.ErrDuplicateRequest)
+	// ✅ ИСПРАВЛЕНО: Добавляем .Run() чтобы выполнить функцию внутри транзакции
+	txManager.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).
+		Run(func(args mock.Arguments) {
+			fn := args.Get(1).(func(pgx.Tx) error)
+			fn(nil) // Выполняем функцию транзакции
+		}).
+		Return(custom_err.ErrDuplicateRequest)
+
 	repo.On("OperationExistsTx", ctx, mock.Anything, req.RequestID).Return(true, nil)
 
-	// Выполняем тест
 	resp, err := service.Deposit(ctx, userID, req)
 
-	// Проверки
+	// ✅ Проверяем ошибку
 	assert.Error(t, err)
 	assert.Nil(t, resp)
-	assert.Equal(t, custom_err.ErrDuplicateRequest, err)
+	assert.ErrorIs(t, err, custom_err.ErrDuplicateRequest)
 
 	repo.AssertExpectations(t)
 	txManager.AssertExpectations(t)
@@ -305,18 +311,24 @@ func TestWalletService_Withdraw_InsufficientFunds(t *testing.T) {
 
 	repo.On("GetByUserAndCurrency", ctx, userID, req.Currency).Return(wallet, nil)
 
-	// Мокаем транзакцию - недостаточно средств
-	txManager.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Return(custom_err.ErrInsufficientFunds)
+	// ✅ ИСПРАВЛЕНО: Добавляем .Run()
+	txManager.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).
+		Run(func(args mock.Arguments) {
+			fn := args.Get(1).(func(pgx.Tx) error)
+			fn(nil) // Выполняем функцию транзакции
+		}).
+		Return(custom_err.ErrInsufficientFunds)
+
 	repo.On("OperationExistsTx", ctx, mock.Anything, req.RequestID).Return(false, nil)
 	repo.On("GetWalletBalanceForUpdateTx", ctx, mock.Anything, walletID).Return(int64(100000), nil)
-
+	// Код вернёт ошибку после проверки баланса - дальнейшие моки не нужны
 	// Выполняем тест
 	resp, err := service.Withdraw(ctx, userID, req)
 
 	// Проверки
 	assert.Error(t, err)
 	assert.Nil(t, resp)
-	assert.Equal(t, custom_err.ErrInsufficientFunds, err)
+	assert.ErrorIs(t, err, custom_err.ErrInsufficientFunds)
 
 	repo.AssertExpectations(t)
 	txManager.AssertExpectations(t)

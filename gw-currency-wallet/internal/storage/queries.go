@@ -1,4 +1,4 @@
-package repository
+package storage
 
 const (
 	// Wallet queries

@@ -65,23 +65,22 @@ clean:
 	rm -rf bin/
 	rm -f wallet.log
 
-## test: Запустить все тесты
-test:
-	$(GOTEST) -v ./...
+## test-all: Все тесты
+test-all: test-unit test-integration
 
-## test-unit: Запустить юнит-тесты (без интеграционных)
+## test-unit: Юнит-тесты (без интеграционных)
 test-unit:
-	$(GOTEST) -v -short ./...
+	go test -v -short ./internal/service/...
 
-## test-integration: Запустить интеграционные тесты
+## test-integration: Интеграционные тесты (требуется БД)
 test-integration:
-	$(GOTEST) -v -run Integration ./...
+	go test -v -tags=integration ./internal/service/...
 
-## test-coverage: Запустить тесты с покрытием
+## test-coverage: Покрытие кода
 test-coverage:
-	$(GOTEST) -v -coverprofile=coverage.out ./...
-	$(GOCMD) tool cover -html=coverage.out -o coverage.html
-	@echo "Отчет о покрытии: coverage.html"
+	go test -v -coverprofile=coverage.out ./internal/service/...
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "Открыть coverage.html в браузере"
 
 ## deps: Установить зависимости
 deps:

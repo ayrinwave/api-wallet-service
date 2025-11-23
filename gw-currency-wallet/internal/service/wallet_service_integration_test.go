@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"api_wallet/internal/custom_err"
-	"api_wallet/internal/models"
-	"api_wallet/internal/repository/postgres"
-	"api_wallet/internal/testhelpers"
+	"agw-currency-wallet/internal/repository/postgres"
+	"gw-currency-wallet/internal/custom_err"
+	"gw-currency-wallet/internal/models"
+	"gw-currency-wallet/internal/testhelpers"
 )
 
 func setupService(t *testing.T) (*WalletService, *testhelpers.TestDB) {

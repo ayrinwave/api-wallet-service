@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"gw-currency-wallet/internal/custom_err"
 	"gw-currency-wallet/internal/models"
-	"gw-currency-wallet/internal/repository"
+	"gw-currency-wallet/internal/storage"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -37,12 +37,12 @@ func NewUserRepository(db *pgxpool.Pool) UserRepository {
 }
 
 func (r *PgUserRepository) Create(ctx context.Context, user *models.User) (*models.User, error) {
-	const op = "repository.Create"
+	const op = "storage.Create"
 
 	var createdUser models.User
 	err := r.db.QueryRow(
 		ctx,
-		repository.CreateUserQuery,
+		storage.CreateUserQuery,
 		user.ID,
 		user.Username,
 		user.Email,
@@ -76,10 +76,10 @@ func (r *PgUserRepository) Create(ctx context.Context, user *models.User) (*mode
 
 // GetByID получает пользователя по ID
 func (r *PgUserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
-	const op = "repository.GetByID"
+	const op = "storage.GetByID"
 
 	var user models.User
-	err := r.db.QueryRow(ctx, repository.GetUserByIDQuery, id).Scan(
+	err := r.db.QueryRow(ctx, storage.GetUserByIDQuery, id).Scan(
 		&user.ID,
 		&user.Username,
 		&user.Email,
@@ -100,10 +100,10 @@ func (r *PgUserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.U
 
 // GetByUsername получает пользователя по username
 func (r *PgUserRepository) GetByUsername(ctx context.Context, username string) (*models.User, error) {
-	const op = "repository.GetByUsername"
+	const op = "storage.GetByUsername"
 
 	var user models.User
-	err := r.db.QueryRow(ctx, repository.GetUserByUsernameQuery, username).Scan(
+	err := r.db.QueryRow(ctx, storage.GetUserByUsernameQuery, username).Scan(
 		&user.ID,
 		&user.Username,
 		&user.Email,
@@ -124,10 +124,10 @@ func (r *PgUserRepository) GetByUsername(ctx context.Context, username string) (
 
 // GetByEmail получает пользователя по email
 func (r *PgUserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
-	const op = "repository.GetByEmail"
+	const op = "storage.GetByEmail"
 
 	var user models.User
-	err := r.db.QueryRow(ctx, repository.GetUserByEmailQuery, email).Scan(
+	err := r.db.QueryRow(ctx, storage.GetUserByEmailQuery, email).Scan(
 		&user.ID,
 		&user.Username,
 		&user.Email,
@@ -148,10 +148,10 @@ func (r *PgUserRepository) GetByEmail(ctx context.Context, email string) (*model
 
 // ExistsByUsername проверяет существование пользователя по username
 func (r *PgUserRepository) ExistsByUsername(ctx context.Context, username string) (bool, error) {
-	const op = "repository.ExistsByUsername"
+	const op = "storage.ExistsByUsername"
 
 	var exists bool
-	err := r.db.QueryRow(ctx, repository.CheckUserExistsByUsernameQuery, username).Scan(&exists)
+	err := r.db.QueryRow(ctx, storage.CheckUserExistsByUsernameQuery, username).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("%s: %w", op, err)
 	}
@@ -161,10 +161,10 @@ func (r *PgUserRepository) ExistsByUsername(ctx context.Context, username string
 
 // ExistsByEmail проверяет существование пользователя по email
 func (r *PgUserRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {
-	const op = "repository.ExistsByEmail"
+	const op = "storage.ExistsByEmail"
 
 	var exists bool
-	err := r.db.QueryRow(ctx, repository.CheckUserExistsByEmailQuery, email).Scan(&exists)
+	err := r.db.QueryRow(ctx, storage.CheckUserExistsByEmailQuery, email).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("%s: %w", op, err)
 	}

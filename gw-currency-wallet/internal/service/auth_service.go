@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"gw-currency-wallet/internal/custom_err"
 	"gw-currency-wallet/internal/models"
-	"gw-currency-wallet/internal/repository/postgres"
+	"gw-currency-wallet/internal/storage/postgres"
 	"log/slog"
 	"time"
 
