@@ -7,12 +7,12 @@ import (
 
 // @title           Currency Wallet API
 // @version         1.0
-// @description     API для управления криптовалютным кошельком с поддержкой мультивалютности
-// @description     Поддерживаемые валюты: USD, RUB, EUR
+// @description     API для управления мультивалютным кошельком с поддержкой обмена валют
 // @termsOfService  http://swagger.io/terms/
 
 // @contact.name   API Support
-// @contact.email  support@example.com
+// @contact.url    http://www.swagger.io/support
+// @contact.email  support@swagger.io
 
 // @license.name  Apache 2.0
 // @license.url   http://www.apache.org/licenses/LICENSE-2.0.html
@@ -23,7 +23,7 @@ import (
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
-// @description Type "Bearer" followed by a space and JWT token.
+// @description Введите токен в формате: Bearer {token}
 func main() {
 	app, err := app.NewApp()
 	if err != nil {

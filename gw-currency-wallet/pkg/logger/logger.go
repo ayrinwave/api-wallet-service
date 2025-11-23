@@ -25,7 +25,7 @@ func NewLevelBasedMuxHandler(stdout, file io.Writer) *LevelBasedMuxHandler {
 	return &LevelBasedMuxHandler{
 		// Консоль: JSON формат, INFO+ (удобнее для production)
 		stdoutHandler: slog.NewJSONHandler(stdout, &slog.HandlerOptions{
-			Level:     slog.LevelInfo,
+			Level:     slog.LevelDebug,
 			AddSource: false, // Можно включить для отладки
 		}),
 		// Файл: JSON формат, INFO+ (сохраняем всю важную информацию)
@@ -64,25 +64,6 @@ func (h *LevelBasedMuxHandler) WithGroup(name string) slog.Handler {
 		fileHandler:   h.fileHandler.WithGroup(name),
 	}
 }
-
-//// NewLogger создает логгер с записью в файл и stdout
-//// Файл НЕ удаляется при перезапуске (append mode)
-//func NewLogger() *LoggerWithFile {
-//	// Имя файла лога
-//	logFileName := "service.log"
-//
-//	// Открываем файл в режиме APPEND (не удаляем старые логи!)
-//	logFile, err := os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-//	if err != nil {
-//		log.Fatalf("не удалось открыть файл логов: %v", err)
-//	}
-//
-//	handler := NewLevelBasedMuxHandler(os.Stdout, logFile)
-//	return &LoggerWithFile{
-//		Logger:  slog.New(handler),
-//		LogFile: logFile,
-//	}
-//}
 
 // NewLoggerWithFile - вариант с кастомным именем файла
 func NewLoggerWithFile(fileName string) *LoggerWithFile {

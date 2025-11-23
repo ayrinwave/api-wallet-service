@@ -87,6 +87,8 @@ func NewApp() (*App, error) {
 	srv := server.NewServer(cfg.HTTPPort)
 	log.Info("сервер инициализирован", slog.String("port", cfg.HTTPPort))
 
+	srv.RegisterSwagger()
+
 	// Middlewares
 	srv.Router.Use(middleware.RequestID)
 	srv.Router.Use(middlew.WithLogger(log))

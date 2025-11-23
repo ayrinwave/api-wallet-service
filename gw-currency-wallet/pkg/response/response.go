@@ -7,7 +7,7 @@ import (
 )
 
 type ErrorResponse struct {
-	Error   string `json:"error"`
+	Error   string `json:"error" example:"invalid_input"`
 	Message string `json:"message,omitempty"`
 }
 

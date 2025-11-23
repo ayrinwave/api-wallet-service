@@ -22,6 +22,18 @@ func NewExchangeHandler(service service.Exchange) *ExchangeHandler {
 	}
 }
 
+// GetExchangeRates godoc
+// @Summary      Получить курсы валют
+// @Description  Возвращает текущие курсы обмена для всех поддерживаемых валют относительно USD
+// @Tags         exchange
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} models.ExchangeRatesResponse "Курсы валют"
+// @Failure      401 {object} response.ErrorResponse "Не авторизован"
+// @Failure      500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router       /exchange/rates [get]
+
 // GetExchangeRates получает курсы всех валют
 // GET /api/v1/exchange/rates
 func (h *ExchangeHandler) GetExchangeRates(w http.ResponseWriter, r *http.Request) {
@@ -52,6 +64,21 @@ func (h *ExchangeHandler) GetExchangeRates(w http.ResponseWriter, r *http.Reques
 
 	response.WriteJSONSuccess(w, log, http.StatusOK, responseData)
 }
+
+// ExchangeCurrency godoc
+// @Summary      Обменять валюту
+// @Description  Выполняет обмен одной валюты на другую по текущему курсу. При обмене суммы >= 30000 USD отправляется уведомление в Kafka
+// @Tags         exchange
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body models.ExchangeRequest true "Данные для обмена валют"
+// @Success      200 {object} models.ExchangeResponse "Обмен выполнен успешно"
+// @Failure      400 {object} response.ErrorResponse "Невалидные данные, недостаточно средств или одинаковые валюты"
+// @Failure      401 {object} response.ErrorResponse "Не авторизован"
+// @Failure      404 {object} response.ErrorResponse "Кошелек не найден"
+// @Failure      500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router       /exchange [post]
 
 // ExchangeCurrency выполняет обмен валют
 // POST /api/v1/exchange

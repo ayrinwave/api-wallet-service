@@ -1,261 +1,408 @@
 package service
 
 import (
-	"api_wallet/internal/custom_err"
-	"api_wallet/internal/models"
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
+	"gw-currency-wallet/internal/custom_err"
+	"gw-currency-wallet/internal/models"
 )
 
-type MockWalletRepository struct {
-	mock.Mock
-}
+// Вспомогательные функции
+func setupWalletService(t *testing.T) (*WalletService, *MockWalletRepo, *MockTxManager) {
+	repo := new(MockWalletRepo)
+	txManager := new(MockTxManager)
 
-func (m *MockWalletRepository) GetWalletBalanceForUpdateTx(ctx context.Context, tx pgx.Tx, walletID uuid.UUID) (int64, error) {
-	args := m.Called(ctx, tx, walletID)
-	return args.Get(0).(int64), args.Error(1)
-}
-
-func (m *MockWalletRepository) UpdateBalanceTx(ctx context.Context, tx pgx.Tx, walletID uuid.UUID, newBalance int64) error {
-	args := m.Called(ctx, tx, walletID, newBalance)
-	return args.Error(0)
-}
-
-func (m *MockWalletRepository) OperationExistsTx(ctx context.Context, tx pgx.Tx, requestID string) (bool, error) {
-	args := m.Called(ctx, tx, requestID)
-	return args.Bool(0), args.Error(1)
-}
-
-func (m *MockWalletRepository) CreateOperationTx(ctx context.Context, tx pgx.Tx, walletID uuid.UUID, amount int64, requestID string) error {
-	args := m.Called(ctx, tx, walletID, amount, requestID)
-	return args.Error(0)
-}
-
-func (m *MockWalletRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Wallet, error) {
-	args := m.Called(ctx, id)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
+	service := &WalletService{
+		repo:      repo,
+		txManager: txManager,
 	}
-	return args.Get(0).(*models.Wallet), args.Error(1)
+
+	return service, repo, txManager
 }
 
-// Mock TxManager
-type MockTxManager struct {
-	mock.Mock
-}
+// ========== Тесты для GetUserBalance ==========
 
-func (m *MockTxManager) WithTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
-	args := m.Called(ctx, fn)
+func TestWalletService_GetUserBalance_Success(t *testing.T) {
+	service, repo, _ := setupWalletService(t)
+	ctx := context.Background()
+	userID := uuid.New()
 
-	// Выполняем переданную функцию с nil tx (мы мокируем repository)
-	if args.Error(0) == nil {
-		return fn(nil)
+	wallets := []*models.Wallet{
+		{
+			ID:       uuid.New(),
+			UserID:   userID,
+			Currency: string(models.CurrencyUSD),
+			Balance:  100050, // 1000.50 USD
+		},
+		{
+			ID:       uuid.New(),
+			UserID:   userID,
+			Currency: string(models.CurrencyRUB),
+			Balance:  5000000, // 50000.00 RUB
+		},
+		{
+			ID:       uuid.New(),
+			UserID:   userID,
+			Currency: string(models.CurrencyEUR),
+			Balance:  85075, // 850.75 EUR
+		},
 	}
-	return args.Error(0)
+
+	repo.On("GetAllUserWallets", ctx, userID).Return(wallets, nil)
+
+	// Выполняем тест
+	resp, err := service.GetUserBalance(ctx, userID)
+
+	// Проверки
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Equal(t, 1000.50, resp.USD)
+	assert.Equal(t, 50000.00, resp.RUB)
+	assert.Equal(t, 850.75, resp.EUR)
+
+	repo.AssertExpectations(t)
 }
 
-// Тесты
-func TestUpdateBalance_Success_Deposit(t *testing.T) {
-	// Arrange
-	mockRepo := new(MockWalletRepository)
-	mockTxManager := new(MockTxManager)
-	service := NewWalletService(mockRepo, mockTxManager)
+func TestWalletService_GetUserBalance_EmptyWallets(t *testing.T) {
+	service, repo, _ := setupWalletService(t)
+	ctx := context.Background()
+	userID := uuid.New()
 
+	// ✅ ИСПРАВЛЕНО: []*models.Wallet вместо []models.Wallet
+	repo.On("GetAllUserWallets", ctx, userID).Return([]*models.Wallet{}, nil)
+
+	resp, err := service.GetUserBalance(ctx, userID)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Equal(t, 0.0, resp.USD)
+	assert.Equal(t, 0.0, resp.RUB)
+	assert.Equal(t, 0.0, resp.EUR)
+
+	repo.AssertExpectations(t)
+}
+
+// ========== Тесты для Deposit ==========
+
+func TestWalletService_Deposit_Success(t *testing.T) {
+	service, repo, txManager := setupWalletService(t)
+	ctx := context.Background()
+	userID := uuid.New()
+	walletID := uuid.New()
+
+	req := models.DepositRequest{
+		Amount:    500.00,
+		Currency:  models.CurrencyUSD,
+		RequestID: "deposit-001",
+	}
+
+	wallet := &models.Wallet{
+		ID:       walletID,
+		UserID:   userID,
+		Currency: string(models.CurrencyUSD),
+		Balance:  100000,
+	}
+
+	repo.On("GetByUserAndCurrency", ctx, userID, req.Currency).Return(wallet, nil)
+
+	txManager.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Return(nil)
+	repo.On("OperationExistsTx", ctx, mock.Anything, req.RequestID).Return(false, nil)
+	repo.On("GetWalletBalanceForUpdateTx", ctx, mock.Anything, walletID).Return(int64(100000), nil)
+	repo.On("UpdateBalanceTx", ctx, mock.Anything, walletID, int64(150000)).Return(nil)
+	repo.On("CreateOperationTx", ctx, mock.Anything, walletID, int64(50000), req.RequestID).Return(nil)
+
+	// ✅ ИСПРАВЛЕНО: []*models.Wallet вместо []models.Wallet
+	repo.On("GetAllUserWallets", ctx, userID).Return([]*models.Wallet{
+		{ID: walletID, UserID: userID, Currency: string(models.CurrencyUSD), Balance: 150000},
+	}, nil)
+
+	resp, err := service.Deposit(ctx, userID, req)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Equal(t, "Account topped up successfully", resp.Message)
+	assert.Equal(t, 1500.00, resp.NewBalance.USD)
+
+	repo.AssertExpectations(t)
+	txManager.AssertExpectations(t)
+}
+
+func TestWalletService_Deposit_InvalidCurrency(t *testing.T) {
+	service, _, _ := setupWalletService(t)
+	ctx := context.Background()
+	userID := uuid.New()
+
+	req := models.DepositRequest{
+		Amount:    500.00,
+		Currency:  "INVALID",
+		RequestID: "deposit-001",
+	}
+
+	// Выполняем тест
+	resp, err := service.Deposit(ctx, userID, req)
+
+	// Проверки
+	assert.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Equal(t, custom_err.ErrInvalidCurrency, err)
+}
+
+func TestWalletService_Deposit_InvalidAmount(t *testing.T) {
+	service, _, _ := setupWalletService(t)
+	ctx := context.Background()
+	userID := uuid.New()
+
+	tests := []struct {
+		name   string
+		amount float64
+	}{
+		{"zero amount", 0.0},
+		{"negative amount", -100.0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := models.DepositRequest{
+				Amount:    tt.amount,
+				Currency:  models.CurrencyUSD,
+				RequestID: "deposit-001",
+			}
+
+			resp, err := service.Deposit(ctx, userID, req)
+
+			assert.Error(t, err)
+			assert.Nil(t, resp)
+			assert.Equal(t, custom_err.ErrInvalidAmount, err)
+		})
+	}
+}
+
+func TestWalletService_Deposit_EmptyRequestID(t *testing.T) {
+	service, _, _ := setupWalletService(t)
+	ctx := context.Background()
+	userID := uuid.New()
+
+	req := models.DepositRequest{
+		Amount:    500.00,
+		Currency:  models.CurrencyUSD,
+		RequestID: "",
+	}
+
+	// Выполняем тест
+	resp, err := service.Deposit(ctx, userID, req)
+
+	// Проверки
+	assert.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Equal(t, custom_err.ErrInvalidInput, err)
+}
+
+func TestWalletService_Deposit_DuplicateRequest(t *testing.T) {
+	service, repo, txManager := setupWalletService(t)
+	ctx := context.Background()
+	userID := uuid.New()
+	walletID := uuid.New()
+
+	req := models.DepositRequest{
+		Amount:    500.00,
+		Currency:  models.CurrencyUSD,
+		RequestID: "deposit-001",
+	}
+
+	wallet := &models.Wallet{
+		ID:       walletID,
+		UserID:   userID,
+		Currency: string(models.CurrencyUSD),
+		Balance:  100000,
+	}
+
+	repo.On("GetByUserAndCurrency", ctx, userID, req.Currency).Return(wallet, nil)
+
+	// Мокаем транзакцию - операция уже существует
+	txManager.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Return(custom_err.ErrDuplicateRequest)
+	repo.On("OperationExistsTx", ctx, mock.Anything, req.RequestID).Return(true, nil)
+
+	// Выполняем тест
+	resp, err := service.Deposit(ctx, userID, req)
+
+	// Проверки
+	assert.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Equal(t, custom_err.ErrDuplicateRequest, err)
+
+	repo.AssertExpectations(t)
+	txManager.AssertExpectations(t)
+}
+
+// ========== Тесты для Withdraw ==========
+
+func TestWalletService_Withdraw_Success(t *testing.T) {
+	service, repo, txManager := setupWalletService(t)
+	ctx := context.Background()
+	userID := uuid.New()
+	walletID := uuid.New()
+
+	req := models.WithdrawRequest{
+		Amount:    300.00,
+		Currency:  models.CurrencyUSD,
+		RequestID: "withdraw-001",
+	}
+
+	wallet := &models.Wallet{
+		ID:       walletID,
+		UserID:   userID,
+		Currency: string(models.CurrencyUSD),
+		Balance:  100000,
+	}
+
+	repo.On("GetByUserAndCurrency", ctx, userID, req.Currency).Return(wallet, nil)
+
+	txManager.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Return(nil)
+	repo.On("OperationExistsTx", ctx, mock.Anything, req.RequestID).Return(false, nil)
+	repo.On("GetWalletBalanceForUpdateTx", ctx, mock.Anything, walletID).Return(int64(100000), nil)
+	repo.On("UpdateBalanceTx", ctx, mock.Anything, walletID, int64(70000)).Return(nil)
+	repo.On("CreateOperationTx", ctx, mock.Anything, walletID, int64(30000), req.RequestID).Return(nil)
+
+	// ✅ ИСПРАВЛЕНО: []*models.Wallet вместо []models.Wallet
+	repo.On("GetAllUserWallets", ctx, userID).Return([]*models.Wallet{
+		{ID: walletID, UserID: userID, Currency: string(models.CurrencyUSD), Balance: 70000},
+	}, nil)
+
+	resp, err := service.Withdraw(ctx, userID, req)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Equal(t, "Withdrawal successful", resp.Message)
+	assert.Equal(t, 700.00, resp.NewBalance.USD)
+
+	repo.AssertExpectations(t)
+	txManager.AssertExpectations(t)
+}
+
+func TestWalletService_Withdraw_InsufficientFunds(t *testing.T) {
+	service, repo, txManager := setupWalletService(t)
+	ctx := context.Background()
+	userID := uuid.New()
+	walletID := uuid.New()
+
+	req := models.WithdrawRequest{
+		Amount:    1500.00, // Больше чем на балансе
+		Currency:  models.CurrencyUSD,
+		RequestID: "withdraw-001",
+	}
+
+	wallet := &models.Wallet{
+		ID:       walletID,
+		UserID:   userID,
+		Currency: string(models.CurrencyUSD),
+		Balance:  100000, // 1000.00 USD
+	}
+
+	repo.On("GetByUserAndCurrency", ctx, userID, req.Currency).Return(wallet, nil)
+
+	// Мокаем транзакцию - недостаточно средств
+	txManager.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Return(custom_err.ErrInsufficientFunds)
+	repo.On("OperationExistsTx", ctx, mock.Anything, req.RequestID).Return(false, nil)
+	repo.On("GetWalletBalanceForUpdateTx", ctx, mock.Anything, walletID).Return(int64(100000), nil)
+
+	// Выполняем тест
+	resp, err := service.Withdraw(ctx, userID, req)
+
+	// Проверки
+	assert.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Equal(t, custom_err.ErrInsufficientFunds, err)
+
+	repo.AssertExpectations(t)
+	txManager.AssertExpectations(t)
+}
+
+func TestWalletService_Withdraw_WalletNotFound(t *testing.T) {
+	service, repo, _ := setupWalletService(t)
+	ctx := context.Background()
+	userID := uuid.New()
+
+	req := models.WithdrawRequest{
+		Amount:    100.00,
+		Currency:  models.CurrencyUSD,
+		RequestID: "withdraw-001",
+	}
+
+	// Мокаем GetByUserAndCurrency - кошелек не найден
+	repo.On("GetByUserAndCurrency", ctx, userID, req.Currency).Return(nil, custom_err.ErrNotFound)
+
+	// Выполняем тест
+	resp, err := service.Withdraw(ctx, userID, req)
+
+	// Проверки
+	assert.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Equal(t, custom_err.ErrNotFound, err)
+
+	repo.AssertExpectations(t)
+}
+
+// ========== Тесты для UpdateBalance (старый метод) ==========
+
+func TestWalletService_UpdateBalance_Deposit(t *testing.T) {
+	service, repo, txManager := setupWalletService(t)
 	ctx := context.Background()
 	walletID := uuid.New()
-	requestID := "test-request-1"
 
-	request := models.WalletOperationRequest{
+	req := models.WalletOperationRequest{
 		WalletID:      walletID,
 		OperationType: models.OperationDeposit,
-		Amount:        100,
-		RequestID:     requestID,
+		Amount:        50000, // 500.00
+		RequestID:     "op-001",
 	}
 
-	// Mock expectations
-	mockTxManager.On("WithTx", mock.Anything, mock.Anything).Return(nil)
-	mockRepo.On("OperationExistsTx", mock.Anything, mock.Anything, requestID).Return(false, nil)
-	mockRepo.On("GetWalletBalanceForUpdateTx", mock.Anything, mock.Anything, walletID).Return(int64(1000), nil)
-	mockRepo.On("UpdateBalanceTx", mock.Anything, mock.Anything, walletID, int64(1100)).Return(nil)
-	mockRepo.On("CreateOperationTx", mock.Anything, mock.Anything, walletID, int64(100), requestID).Return(nil)
+	// Мокаем транзакцию
+	txManager.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Return(nil)
+	repo.On("OperationExistsTx", ctx, mock.Anything, req.RequestID).Return(false, nil)
+	repo.On("GetWalletBalanceForUpdateTx", ctx, mock.Anything, walletID).Return(int64(100000), nil)
+	repo.On("UpdateBalanceTx", ctx, mock.Anything, walletID, int64(150000)).Return(nil)
+	repo.On("CreateOperationTx", ctx, mock.Anything, walletID, int64(50000), req.RequestID).Return(nil)
 
-	// Act
-	err := service.UpdateBalance(ctx, request)
+	// Выполняем тест
+	err := service.UpdateBalance(ctx, req)
 
-	// Assert
+	// Проверки
 	assert.NoError(t, err)
-	mockRepo.AssertExpectations(t)
-	mockTxManager.AssertExpectations(t)
+
+	repo.AssertExpectations(t)
+	txManager.AssertExpectations(t)
 }
 
-func TestUpdateBalance_Success_Withdraw(t *testing.T) {
-	// Arrange
-	mockRepo := new(MockWalletRepository)
-	mockTxManager := new(MockTxManager)
-	service := NewWalletService(mockRepo, mockTxManager)
-
+func TestWalletService_UpdateBalance_Withdraw(t *testing.T) {
+	service, repo, txManager := setupWalletService(t)
 	ctx := context.Background()
 	walletID := uuid.New()
-	requestID := "test-request-2"
 
-	request := models.WalletOperationRequest{
+	req := models.WalletOperationRequest{
 		WalletID:      walletID,
 		OperationType: models.OperationWithdraw,
-		Amount:        100,
-		RequestID:     requestID,
+		Amount:        30000, // 300.00
+		RequestID:     "op-002",
 	}
 
-	// Mock expectations
-	mockTxManager.On("WithTx", mock.Anything, mock.Anything).Return(nil)
-	mockRepo.On("OperationExistsTx", mock.Anything, mock.Anything, requestID).Return(false, nil)
-	mockRepo.On("GetWalletBalanceForUpdateTx", mock.Anything, mock.Anything, walletID).Return(int64(1000), nil)
-	mockRepo.On("UpdateBalanceTx", mock.Anything, mock.Anything, walletID, int64(900)).Return(nil)
-	mockRepo.On("CreateOperationTx", mock.Anything, mock.Anything, walletID, int64(-100), requestID).Return(nil)
+	// Мокаем транзакцию
+	txManager.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Return(nil)
+	repo.On("OperationExistsTx", ctx, mock.Anything, req.RequestID).Return(false, nil)
+	repo.On("GetWalletBalanceForUpdateTx", ctx, mock.Anything, walletID).Return(int64(100000), nil)
+	repo.On("UpdateBalanceTx", ctx, mock.Anything, walletID, int64(70000)).Return(nil)
+	repo.On("CreateOperationTx", ctx, mock.Anything, walletID, int64(30000), req.RequestID).Return(nil)
 
-	// Act
-	err := service.UpdateBalance(ctx, request)
+	// Выполняем тест
+	err := service.UpdateBalance(ctx, req)
 
-	// Assert
+	// Проверки
 	assert.NoError(t, err)
-	mockRepo.AssertExpectations(t)
-}
 
-func TestUpdateBalance_InsufficientFunds(t *testing.T) {
-	// Arrange
-	mockRepo := new(MockWalletRepository)
-	mockTxManager := new(MockTxManager)
-	service := NewWalletService(mockRepo, mockTxManager)
-
-	ctx := context.Background()
-	walletID := uuid.New()
-	requestID := "test-request-3"
-
-	request := models.WalletOperationRequest{
-		WalletID:      walletID,
-		OperationType: models.OperationWithdraw,
-		Amount:        2000, // Больше чем баланс
-		RequestID:     requestID,
-	}
-
-	// Mock expectations
-	mockTxManager.On("WithTx", mock.Anything, mock.Anything).Return(custom_err.ErrInsufficientFunds)
-	mockRepo.On("OperationExistsTx", mock.Anything, mock.Anything, requestID).Return(false, nil)
-	mockRepo.On("GetWalletBalanceForUpdateTx", mock.Anything, mock.Anything, walletID).Return(int64(1000), nil)
-
-	// Act
-	err := service.UpdateBalance(ctx, request)
-
-	// Assert
-	assert.Error(t, err)
-	assert.True(t, errors.Is(err, custom_err.ErrInsufficientFunds))
-}
-
-func TestUpdateBalance_WalletNotFound(t *testing.T) {
-	// Arrange
-	mockRepo := new(MockWalletRepository)
-	mockTxManager := new(MockTxManager)
-	service := NewWalletService(mockRepo, mockTxManager)
-
-	ctx := context.Background()
-	walletID := uuid.New()
-	requestID := "test-request-4"
-
-	request := models.WalletOperationRequest{
-		WalletID:      walletID,
-		OperationType: models.OperationDeposit,
-		Amount:        100,
-		RequestID:     requestID,
-	}
-
-	// Mock expectations
-	mockTxManager.On("WithTx", mock.Anything, mock.Anything).Return(custom_err.ErrNotFound)
-	mockRepo.On("OperationExistsTx", mock.Anything, mock.Anything, requestID).Return(false, nil)
-	mockRepo.On("GetWalletBalanceForUpdateTx", mock.Anything, mock.Anything, walletID).Return(int64(0), pgx.ErrNoRows)
-
-	// Act
-	err := service.UpdateBalance(ctx, request)
-
-	// Assert
-	assert.Error(t, err)
-	assert.True(t, errors.Is(err, custom_err.ErrNotFound))
-}
-
-func TestUpdateBalance_DuplicateRequest(t *testing.T) {
-	// Arrange
-	mockRepo := new(MockWalletRepository)
-	mockTxManager := new(MockTxManager)
-	service := NewWalletService(mockRepo, mockTxManager)
-
-	ctx := context.Background()
-	walletID := uuid.New()
-	requestID := "duplicate-request"
-
-	request := models.WalletOperationRequest{
-		WalletID:      walletID,
-		OperationType: models.OperationDeposit,
-		Amount:        100,
-		RequestID:     requestID,
-	}
-
-	// Mock expectations - операция уже существует
-	mockTxManager.On("WithTx", mock.Anything, mock.Anything).Return(nil)
-	mockRepo.On("OperationExistsTx", mock.Anything, mock.Anything, requestID).Return(true, nil)
-
-	// Act
-	err := service.UpdateBalance(ctx, request)
-
-	// Assert
-	assert.NoError(t, err) // Идемпотентность - не ошибка!
-	mockRepo.AssertExpectations(t)
-}
-
-func TestGetWalletByID_Success(t *testing.T) {
-	// Arrange
-	mockRepo := new(MockWalletRepository)
-	mockTxManager := new(MockTxManager)
-	service := NewWalletService(mockRepo, mockTxManager)
-
-	ctx := context.Background()
-	walletID := uuid.New()
-
-	expectedWallet := &models.Wallet{
-		ID:      walletID,
-		Balance: 1000,
-	}
-
-	mockRepo.On("GetByID", ctx, walletID).Return(expectedWallet, nil)
-
-	// Act
-	wallet, err := service.GetWalletByID(ctx, walletID)
-
-	// Assert
-	assert.NoError(t, err)
-	assert.Equal(t, expectedWallet, wallet)
-	mockRepo.AssertExpectations(t)
-}
-
-func TestGetWalletByID_NotFound(t *testing.T) {
-	// Arrange
-	mockRepo := new(MockWalletRepository)
-	mockTxManager := new(MockTxManager)
-	service := NewWalletService(mockRepo, mockTxManager)
-
-	ctx := context.Background()
-	walletID := uuid.New()
-
-	mockRepo.On("GetByID", ctx, walletID).Return(nil, custom_err.ErrNotFound)
-
-	// Act
-	wallet, err := service.GetWalletByID(ctx, walletID)
-
-	// Assert
-	assert.Error(t, err)
-	assert.Nil(t, wallet)
-	assert.True(t, errors.Is(err, custom_err.ErrNotFound))
+	repo.AssertExpectations(t)
+	txManager.AssertExpectations(t)
 }
