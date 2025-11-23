@@ -24,14 +24,13 @@ import (
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
-// @description Введите токен БЕЗ префикса "Bearer ". Swagger добавит его автоматически.
 func main() {
 	app, err := app.NewApp()
 	if err != nil {
 		log.Fatalf("Ошибка создания приложения: %v", err)
 	}
 
-	// Собираем все слои приложения
+	//слои приложения
 	app.BuildAuthLayer()
 	app.BuildWalletLayer()
 	app.BuildExchangeLayer()

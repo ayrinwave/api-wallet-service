@@ -1,5 +1,5 @@
 # IDE-specific files
-gw-currency-wallet/.idea/
+.idea/
 
 
 **/*_test.go
