@@ -23,19 +23,16 @@ func NewAuthHandler(service service.Auth) *AuthHandler {
 }
 
 // Register godoc
-// @Summary      Регистрация нового пользователя
-// @Description  Создает нового пользователя с указанными данными и автоматически создает кошельки для всех поддерживаемых валют
+// @Summary      Регистрация пользователя
+// @Description  Создает нового пользователя и кошельки для всех валют
 // @Tags         auth
 // @Accept       json
 // @Produce      json
-// @Param        request body models.RegisterRequest true "Данные для регистрации"
-// @Success      201 {object} models.RegisterResponse "Пользователь успешно зарегистрирован"
-// @Failure      400 {object} response.ErrorResponse "Невалидные данные или пользователь уже существует"
-// @Failure      500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Param        request body models.RegisterRequest true "Данные регистрации"
+// @Success      201 {object} models.RegisterResponse
+// @Failure      400 {object} response.ErrorResponse
+// @Failure      500 {object} response.ErrorResponse
 // @Router       /register [post]
-
-// Register обрабатывает регистрацию нового пользователя
-// POST /api/v1/register
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	const op = "handler.Register"
 	log := middlew.GetLogger(r.Context())
@@ -105,19 +102,15 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 // Login godoc
 // @Summary      Авторизация пользователя
-// @Description  Авторизует пользователя и возвращает JWT токен для дальнейших запросов
+// @Description  Авторизует пользователя и возвращает JWT токен
 // @Tags         auth
 // @Accept       json
 // @Produce      json
-// @Param        request body models.LoginRequest true "Данные для входа"
-// @Success      200 {object} models.LoginResponse "Успешная авторизация"
-// @Failure      400 {object} response.ErrorResponse "Невалидные данные"
-// @Failure      401 {object} response.ErrorResponse "Неверный логин или пароль"
-// @Failure      500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Param        request body models.LoginRequest true "Данные входа"
+// @Success      200 {object} models.LoginResponse
+// @Failure      401 {object} response.ErrorResponse
+// @Failure      500 {object} response.ErrorResponse
 // @Router       /login [post]
-
-// Login обрабатывает авторизацию пользователя
-// POST /api/v1/login
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	const op = "handler.Login"
 	log := middlew.GetLogger(r.Context())

@@ -23,10 +23,531 @@ const docTemplate = `{
     },
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
-    "paths": {},
+    "paths": {
+        "/balance": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает баланс по всем валютам (USD, RUB, EUR)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "wallet"
+                ],
+                "summary": "Получить баланс пользователя",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_internal_models.UserBalanceResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_pkg_response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/exchange": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Выполняет обмен одной валюты на другую по текущему курсу",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exchange"
+                ],
+                "summary": "Обменять валюту",
+                "parameters": [
+                    {
+                        "description": "Данные обмена",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_internal_models.ExchangeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_internal_models.ExchangeResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_pkg_response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/exchange/rates": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает текущие курсы обмена всех валют",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exchange"
+                ],
+                "summary": "Получить курсы валют",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_internal_models.ExchangeRatesResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_pkg_response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/login": {
+            "post": {
+                "description": "Авторизует пользователя и возвращает JWT токен",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Авторизация пользователя",
+                "parameters": [
+                    {
+                        "description": "Данные входа",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_internal_models.LoginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_internal_models.LoginResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_pkg_response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/register": {
+            "post": {
+                "description": "Создает нового пользователя и кошельки для всех валют",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Регистрация пользователя",
+                "parameters": [
+                    {
+                        "description": "Данные регистрации",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_internal_models.RegisterRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_internal_models.RegisterResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_pkg_response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/wallet/deposit": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Пополняет кошелек указанной суммой в выбранной валюте",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "wallet"
+                ],
+                "summary": "Пополнить кошелек",
+                "parameters": [
+                    {
+                        "description": "Данные пополнения",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_internal_models.DepositRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_internal_models.BalanceOperationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_pkg_response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/wallet/withdraw": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Списывает средства с кошелька в указанной валюте",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "wallet"
+                ],
+                "summary": "Вывести средства",
+                "parameters": [
+                    {
+                        "description": "Данные вывода",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_internal_models.WithdrawRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_internal_models.BalanceOperationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/gw-currency-wallet_pkg_response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "gw-currency-wallet_internal_models.BalanceOperationResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "new_balance": {
+                    "$ref": "#/definitions/gw-currency-wallet_internal_models.UserBalanceResponse"
+                }
+            }
+        },
+        "gw-currency-wallet_internal_models.Currency": {
+            "type": "string",
+            "enum": [
+                "USD",
+                "RUB",
+                "EUR"
+            ],
+            "x-enum-varnames": [
+                "CurrencyUSD",
+                "CurrencyRUB",
+                "CurrencyEUR"
+            ]
+        },
+        "gw-currency-wallet_internal_models.DepositRequest": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "description": "Сумма в основных единицах (10.50 USD)",
+                    "type": "number"
+                },
+                "currency": {
+                    "description": "USD, RUB, EUR",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/gw-currency-wallet_internal_models.Currency"
+                        }
+                    ]
+                },
+                "requestID": {
+                    "description": "Для идемпотентности",
+                    "type": "string"
+                }
+            }
+        },
+        "gw-currency-wallet_internal_models.ExchangeRatesResponse": {
+            "type": "object",
+            "properties": {
+                "rates": {
+                    "description": "USD: 1.0, RUB: 95.5, EUR: 0.92",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "number",
+                        "format": "float64"
+                    }
+                }
+            }
+        },
+        "gw-currency-wallet_internal_models.ExchangeRequest": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "description": "Сумма в исходной валюте",
+                    "type": "number"
+                },
+                "from_currency": {
+                    "description": "USD, RUB, EUR",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/gw-currency-wallet_internal_models.Currency"
+                        }
+                    ]
+                },
+                "requestID": {
+                    "description": "Для идемпотентности",
+                    "type": "string"
+                },
+                "to_currency": {
+                    "description": "USD, RUB, EUR",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/gw-currency-wallet_internal_models.Currency"
+                        }
+                    ]
+                }
+            }
+        },
+        "gw-currency-wallet_internal_models.ExchangeResponse": {
+            "type": "object",
+            "properties": {
+                "exchanged_amount": {
+                    "description": "Сумма после обмена",
+                    "type": "number"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "rate": {
+                    "description": "Курс обмена (опционально)",
+                    "type": "number"
+                }
+            }
+        },
+        "gw-currency-wallet_internal_models.LoginRequest": {
+            "type": "object",
+            "required": [
+                "password",
+                "username"
+            ],
+            "properties": {
+                "password": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "gw-currency-wallet_internal_models.LoginResponse": {
+            "type": "object",
+            "properties": {
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "gw-currency-wallet_internal_models.RegisterRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "password",
+                "username"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string",
+                    "minLength": 6
+                },
+                "username": {
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 3
+                }
+            }
+        },
+        "gw-currency-wallet_internal_models.RegisterResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "gw-currency-wallet_internal_models.UserBalanceResponse": {
+            "type": "object",
+            "properties": {
+                "EUR": {
+                    "description": "В евро (с центами)",
+                    "type": "number"
+                },
+                "RUB": {
+                    "description": "В рублях (с копейками)",
+                    "type": "number"
+                },
+                "USD": {
+                    "description": "В долларах (с копейками)",
+                    "type": "number"
+                }
+            }
+        },
+        "gw-currency-wallet_internal_models.WithdrawRequest": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "currency": {
+                    "$ref": "#/definitions/gw-currency-wallet_internal_models.Currency"
+                },
+                "requestID": {
+                    "type": "string"
+                }
+            }
+        },
+        "gw-currency-wallet_pkg_response.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "invalid_input"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        }
+    },
     "securityDefinitions": {
         "BearerAuth": {
-            "description": "Введите токен в формате: Bearer {token}",
+            "description": "Введите токен БЕЗ префикса \"Bearer \". Swagger добавит его автоматически.",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"

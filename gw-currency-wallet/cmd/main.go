@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "gw-currency-wallet/docs"
 	"gw-currency-wallet/internal/app"
 	"log"
 )
@@ -23,7 +24,7 @@ import (
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
-// @description Введите токен в формате: Bearer {token}
+// @description Введите токен БЕЗ префикса "Bearer ". Swagger добавит его автоматически.
 func main() {
 	app, err := app.NewApp()
 	if err != nil {

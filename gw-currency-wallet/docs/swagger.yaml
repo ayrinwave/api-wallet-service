@@ -1,4 +1,137 @@
 basePath: /api/v1
+definitions:
+  gw-currency-wallet_internal_models.BalanceOperationResponse:
+    properties:
+      message:
+        type: string
+      new_balance:
+        $ref: '#/definitions/gw-currency-wallet_internal_models.UserBalanceResponse'
+    type: object
+  gw-currency-wallet_internal_models.Currency:
+    enum:
+    - USD
+    - RUB
+    - EUR
+    type: string
+    x-enum-varnames:
+    - CurrencyUSD
+    - CurrencyRUB
+    - CurrencyEUR
+  gw-currency-wallet_internal_models.DepositRequest:
+    properties:
+      amount:
+        description: Сумма в основных единицах (10.50 USD)
+        type: number
+      currency:
+        allOf:
+        - $ref: '#/definitions/gw-currency-wallet_internal_models.Currency'
+        description: USD, RUB, EUR
+      requestID:
+        description: Для идемпотентности
+        type: string
+    type: object
+  gw-currency-wallet_internal_models.ExchangeRatesResponse:
+    properties:
+      rates:
+        additionalProperties:
+          format: float64
+          type: number
+        description: 'USD: 1.0, RUB: 95.5, EUR: 0.92'
+        type: object
+    type: object
+  gw-currency-wallet_internal_models.ExchangeRequest:
+    properties:
+      amount:
+        description: Сумма в исходной валюте
+        type: number
+      from_currency:
+        allOf:
+        - $ref: '#/definitions/gw-currency-wallet_internal_models.Currency'
+        description: USD, RUB, EUR
+      requestID:
+        description: Для идемпотентности
+        type: string
+      to_currency:
+        allOf:
+        - $ref: '#/definitions/gw-currency-wallet_internal_models.Currency'
+        description: USD, RUB, EUR
+    type: object
+  gw-currency-wallet_internal_models.ExchangeResponse:
+    properties:
+      exchanged_amount:
+        description: Сумма после обмена
+        type: number
+      message:
+        type: string
+      rate:
+        description: Курс обмена (опционально)
+        type: number
+    type: object
+  gw-currency-wallet_internal_models.LoginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  gw-currency-wallet_internal_models.LoginResponse:
+    properties:
+      token:
+        type: string
+    type: object
+  gw-currency-wallet_internal_models.RegisterRequest:
+    properties:
+      email:
+        type: string
+      password:
+        minLength: 6
+        type: string
+      username:
+        maxLength: 50
+        minLength: 3
+        type: string
+    required:
+    - email
+    - password
+    - username
+    type: object
+  gw-currency-wallet_internal_models.RegisterResponse:
+    properties:
+      message:
+        type: string
+    type: object
+  gw-currency-wallet_internal_models.UserBalanceResponse:
+    properties:
+      EUR:
+        description: В евро (с центами)
+        type: number
+      RUB:
+        description: В рублях (с копейками)
+        type: number
+      USD:
+        description: В долларах (с копейками)
+        type: number
+    type: object
+  gw-currency-wallet_internal_models.WithdrawRequest:
+    properties:
+      amount:
+        type: number
+      currency:
+        $ref: '#/definitions/gw-currency-wallet_internal_models.Currency'
+      requestID:
+        type: string
+    type: object
+  gw-currency-wallet_pkg_response.ErrorResponse:
+    properties:
+      error:
+        example: invalid_input
+        type: string
+      message:
+        type: string
+    type: object
 host: localhost:8080
 info:
   contact:
@@ -12,10 +145,212 @@ info:
   termsOfService: http://swagger.io/terms/
   title: Currency Wallet API
   version: "1.0"
-paths: {}
+paths:
+  /balance:
+    get:
+      description: Возвращает баланс по всем валютам (USD, RUB, EUR)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/gw-currency-wallet_internal_models.UserBalanceResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/gw-currency-wallet_pkg_response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/gw-currency-wallet_pkg_response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Получить баланс пользователя
+      tags:
+      - wallet
+  /exchange:
+    post:
+      consumes:
+      - application/json
+      description: Выполняет обмен одной валюты на другую по текущему курсу
+      parameters:
+      - description: Данные обмена
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/gw-currency-wallet_internal_models.ExchangeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/gw-currency-wallet_internal_models.ExchangeResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/gw-currency-wallet_pkg_response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/gw-currency-wallet_pkg_response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Обменять валюту
+      tags:
+      - exchange
+  /exchange/rates:
+    get:
+      description: Возвращает текущие курсы обмена всех валют
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/gw-currency-wallet_internal_models.ExchangeRatesResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/gw-currency-wallet_pkg_response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/gw-currency-wallet_pkg_response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Получить курсы валют
+      tags:
+      - exchange
+  /login:
+    post:
+      consumes:
+      - application/json
+      description: Авторизует пользователя и возвращает JWT токен
+      parameters:
+      - description: Данные входа
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/gw-currency-wallet_internal_models.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/gw-currency-wallet_internal_models.LoginResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/gw-currency-wallet_pkg_response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/gw-currency-wallet_pkg_response.ErrorResponse'
+      summary: Авторизация пользователя
+      tags:
+      - auth
+  /register:
+    post:
+      consumes:
+      - application/json
+      description: Создает нового пользователя и кошельки для всех валют
+      parameters:
+      - description: Данные регистрации
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/gw-currency-wallet_internal_models.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/gw-currency-wallet_internal_models.RegisterResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/gw-currency-wallet_pkg_response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/gw-currency-wallet_pkg_response.ErrorResponse'
+      summary: Регистрация пользователя
+      tags:
+      - auth
+  /wallet/deposit:
+    post:
+      consumes:
+      - application/json
+      description: Пополняет кошелек указанной суммой в выбранной валюте
+      parameters:
+      - description: Данные пополнения
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/gw-currency-wallet_internal_models.DepositRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/gw-currency-wallet_internal_models.BalanceOperationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/gw-currency-wallet_pkg_response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/gw-currency-wallet_pkg_response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Пополнить кошелек
+      tags:
+      - wallet
+  /wallet/withdraw:
+    post:
+      consumes:
+      - application/json
+      description: Списывает средства с кошелька в указанной валюте
+      parameters:
+      - description: Данные вывода
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/gw-currency-wallet_internal_models.WithdrawRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/gw-currency-wallet_internal_models.BalanceOperationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/gw-currency-wallet_pkg_response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/gw-currency-wallet_pkg_response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Вывести средства
+      tags:
+      - wallet
 securityDefinitions:
   BearerAuth:
-    description: 'Введите токен в формате: Bearer {token}'
+    description: Введите токен БЕЗ префикса "Bearer ". Swagger добавит его автоматически.
     in: header
     name: Authorization
     type: apiKey

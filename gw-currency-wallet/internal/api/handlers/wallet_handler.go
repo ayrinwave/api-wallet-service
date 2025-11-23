@@ -128,16 +128,15 @@ func (h *WalletHandler) UpdateBalance(w http.ResponseWriter, r *http.Request) {
 // ========== НОВЫЕ HANDLERS (мультивалютность) ==========
 
 // GetBalance godoc
-// @Summary      Получить баланс
+// @Summary      Получить баланс пользователя
+// @Description  Возвращает баланс по всем валютам (USD, RUB, EUR)
 // @Tags         wallet
 // @Security     BearerAuth
 // @Produce      json
-// @Success      200 {object} models.BalanceResponse
+// @Success      200 {object} models.UserBalanceResponse
 // @Failure      401 {object} response.ErrorResponse
+// @Failure      500 {object} response.ErrorResponse
 // @Router       /balance [get]
-
-// GetBalance получает балансы пользователя по всем валютам
-// GET /api/v1/balance
 func (h *WalletHandler) GetBalance(w http.ResponseWriter, r *http.Request) {
 	const op = "handler.GetBalance"
 	log := middlew.GetLogger(r.Context())
@@ -169,17 +168,16 @@ func (h *WalletHandler) GetBalance(w http.ResponseWriter, r *http.Request) {
 
 // Deposit godoc
 // @Summary      Пополнить кошелек
+// @Description  Пополняет кошелек указанной суммой в выбранной валюте
 // @Tags         wallet
 // @Security     BearerAuth
 // @Accept       json
 // @Produce      json
 // @Param        request body models.DepositRequest true "Данные пополнения"
-// @Success      200 {object} models.DepositResponse
+// @Success      200 {object} models.BalanceOperationResponse
 // @Failure      400 {object} response.ErrorResponse
+// @Failure      401 {object} response.ErrorResponse
 // @Router       /wallet/deposit [post]
-
-// Deposit пополняет кошелек пользователя
-// POST /api/v1/wallet/deposit
 func (h *WalletHandler) Deposit(w http.ResponseWriter, r *http.Request) {
 	const op = "handler.Deposit"
 	log := middlew.GetLogger(r.Context())
@@ -256,17 +254,16 @@ func (h *WalletHandler) Deposit(w http.ResponseWriter, r *http.Request) {
 
 // Withdraw godoc
 // @Summary      Вывести средства
+// @Description  Списывает средства с кошелька в указанной валюте
 // @Tags         wallet
 // @Security     BearerAuth
 // @Accept       json
 // @Produce      json
 // @Param        request body models.WithdrawRequest true "Данные вывода"
-// @Success      200 {object} models.WithdrawResponse
+// @Success      200 {object} models.BalanceOperationResponse
 // @Failure      400 {object} response.ErrorResponse
+// @Failure      401 {object} response.ErrorResponse
 // @Router       /wallet/withdraw [post]
-
-// Withdraw списывает средства с кошелька пользователя
-// POST /api/v1/wallet/withdraw
 func (h *WalletHandler) Withdraw(w http.ResponseWriter, r *http.Request) {
 	const op = "handler.Withdraw"
 	log := middlew.GetLogger(r.Context())
