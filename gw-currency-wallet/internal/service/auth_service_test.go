@@ -16,8 +16,7 @@ import (
 	"gw-currency-wallet/internal/models"
 )
 
-// Вспомогательные функции
-func setupAuthService(t *testing.T) (*AuthService, *MockUserRepository, *MockWalletRepo, *MockTxManager) {
+func setupAuthService() (*AuthService, *MockUserRepository, *MockWalletRepo, *MockTxManager) {
 	userRepo := new(MockUserRepository)
 	walletRepo := new(MockWalletRepo)
 	txManager := new(MockTxManager)
@@ -36,9 +35,8 @@ func setupAuthService(t *testing.T) (*AuthService, *MockUserRepository, *MockWal
 	return service, userRepo, walletRepo, txManager
 }
 
-// Тесты для Register
 func TestAuthService_Register_Success(t *testing.T) {
-	service, userRepo, walletRepo, txManager := setupAuthService(t)
+	service, userRepo, walletRepo, txManager := setupAuthService()
 	ctx := context.Background()
 
 	req := models.RegisterRequest{
@@ -47,11 +45,9 @@ func TestAuthService_Register_Success(t *testing.T) {
 		Password: "password123",
 	}
 
-	// Мокаем проверки существования
 	userRepo.On("ExistsByUsername", ctx, req.Username).Return(false, nil)
 	userRepo.On("ExistsByEmail", ctx, req.Email).Return(false, nil)
 
-	// Мокаем создание пользователя
 	userRepo.On("CreateTx", ctx, mock.Anything, mock.AnythingOfType("*models.User")).
 		Return(&models.User{
 			ID:       uuid.New(),
@@ -59,7 +55,6 @@ func TestAuthService_Register_Success(t *testing.T) {
 			Email:    req.Email,
 		}, nil)
 
-	// Мокаем создание кошельков (USD, RUB, EUR)
 	for _, currency := range models.SupportedCurrencies() {
 		walletRepo.On("CreateWalletTx", ctx, mock.Anything, mock.AnythingOfType("uuid.UUID"), currency).
 			Return(&models.Wallet{
@@ -70,13 +65,10 @@ func TestAuthService_Register_Success(t *testing.T) {
 			}, nil)
 	}
 
-	// Мокаем транзакцию
 	txManager.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Return(nil)
 
-	// Выполняем тест
 	resp, err := service.Register(ctx, req)
 
-	// Проверки
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
 	assert.Equal(t, "User registered successfully", resp.Message)
@@ -87,7 +79,7 @@ func TestAuthService_Register_Success(t *testing.T) {
 }
 
 func TestAuthService_Register_UsernameExists(t *testing.T) {
-	service, userRepo, _, _ := setupAuthService(t)
+	service, userRepo, _, _ := setupAuthService()
 	ctx := context.Background()
 
 	req := models.RegisterRequest{
@@ -96,7 +88,6 @@ func TestAuthService_Register_UsernameExists(t *testing.T) {
 		Password: "password123",
 	}
 
-	// Мокаем проверку username - он уже существует
 	userRepo.On("ExistsByUsername", ctx, req.Username).Return(true, nil)
 
 	// Выполняем тест
@@ -111,7 +102,7 @@ func TestAuthService_Register_UsernameExists(t *testing.T) {
 }
 
 func TestAuthService_Register_EmailExists(t *testing.T) {
-	service, userRepo, _, _ := setupAuthService(t)
+	service, userRepo, _, _ := setupAuthService()
 	ctx := context.Background()
 
 	req := models.RegisterRequest{
@@ -136,7 +127,7 @@ func TestAuthService_Register_EmailExists(t *testing.T) {
 }
 
 func TestAuthService_Register_InvalidInput(t *testing.T) {
-	service, _, _, _ := setupAuthService(t)
+	service, _, _, _ := setupAuthService()
 	ctx := context.Background()
 
 	tests := []struct {
@@ -182,7 +173,7 @@ func TestAuthService_Register_InvalidInput(t *testing.T) {
 
 // Тесты для Login
 func TestAuthService_Login_Success(t *testing.T) {
-	service, userRepo, _, _ := setupAuthService(t)
+	service, userRepo, _, _ := setupAuthService()
 	ctx := context.Background()
 
 	password := "password123"
@@ -221,7 +212,7 @@ func TestAuthService_Login_Success(t *testing.T) {
 }
 
 func TestAuthService_Login_UserNotFound(t *testing.T) {
-	service, userRepo, _, _ := setupAuthService(t)
+	service, userRepo, _, _ := setupAuthService()
 	ctx := context.Background()
 
 	req := models.LoginRequest{
@@ -244,7 +235,7 @@ func TestAuthService_Login_UserNotFound(t *testing.T) {
 }
 
 func TestAuthService_Login_WrongPassword(t *testing.T) {
-	service, userRepo, _, _ := setupAuthService(t)
+	service, userRepo, _, _ := setupAuthService()
 	ctx := context.Background()
 
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("correctpassword"), bcrypt.DefaultCost)
@@ -275,7 +266,7 @@ func TestAuthService_Login_WrongPassword(t *testing.T) {
 }
 
 func TestAuthService_Login_InvalidInput(t *testing.T) {
-	service, _, _, _ := setupAuthService(t)
+	service, _, _, _ := setupAuthService()
 	ctx := context.Background()
 
 	tests := []struct {
@@ -311,7 +302,7 @@ func TestAuthService_Login_InvalidInput(t *testing.T) {
 
 // Тесты для ValidateToken
 func TestAuthService_ValidateToken_Success(t *testing.T) {
-	service, _, _, _ := setupAuthService(t)
+	service, _, _, _ := setupAuthService()
 
 	userID := uuid.New()
 	username := "testuser"
@@ -336,7 +327,7 @@ func TestAuthService_ValidateToken_Success(t *testing.T) {
 }
 
 func TestAuthService_ValidateToken_InvalidToken(t *testing.T) {
-	service, _, _, _ := setupAuthService(t)
+	service, _, _, _ := setupAuthService()
 
 	tests := []struct {
 		name  string

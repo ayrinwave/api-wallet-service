@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"gw-currency-wallet/internal/models"
 	"log/slog"
+	"time"
 
 	"github.com/IBM/sarama"
 )
 
-// Producer интерфейс для отправки событий в Kafka
 type Producer interface {
 	SendLargeTransferEvent(ctx context.Context, event models.LargeTransferEvent) error
 	Close() error
@@ -22,13 +22,13 @@ type KafkaProducer struct {
 	log      *slog.Logger
 }
 
-// NewKafkaProducer создает новый Kafka producer
 func NewKafkaProducer(brokers []string, topic string, log *slog.Logger) (Producer, error) {
 	config := sarama.NewConfig()
 	config.Producer.Return.Successes = true
 	config.Producer.RequiredAcks = sarama.WaitForAll
 	config.Producer.Retry.Max = 5
 	config.Producer.Compression = sarama.CompressionSnappy
+	config.Producer.Timeout = 5 * time.Second // реальный таймаут для SendMessage
 
 	producer, err := sarama.NewSyncProducer(brokers, config)
 	if err != nil {
@@ -44,11 +44,19 @@ func NewKafkaProducer(brokers []string, topic string, log *slog.Logger) (Produce
 	}, nil
 }
 
-// SendLargeTransferEvent отправляет событие о крупном переводе в Kafka
 func (p *KafkaProducer) SendLargeTransferEvent(ctx context.Context, event models.LargeTransferEvent) error {
 	const op = "kafka.SendLargeTransferEvent"
 
-	// Сериализуем событие в JSON
+	select {
+	case <-ctx.Done():
+		p.log.Warn("операция отменена до отправки",
+			slog.String("op", op),
+			slog.String("transaction_id", event.TransactionID),
+			slog.String("reason", ctx.Err().Error()))
+		return fmt.Errorf("%s: %w", op, ctx.Err())
+	default:
+	}
+
 	eventData, err := json.Marshal(event)
 	if err != nil {
 		p.log.Error("ошибка сериализации события",
@@ -57,14 +65,12 @@ func (p *KafkaProducer) SendLargeTransferEvent(ctx context.Context, event models
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	// Создаем сообщение для Kafka
 	msg := &sarama.ProducerMessage{
 		Topic: p.topic,
-		Key:   sarama.StringEncoder(event.TransactionID), // Ключ для партиционирования
+		Key:   sarama.StringEncoder(event.TransactionID),
 		Value: sarama.ByteEncoder(eventData),
 	}
 
-	// Отправляем сообщение
 	partition, offset, err := p.producer.SendMessage(msg)
 	if err != nil {
 		p.log.Error("ошибка отправки события в kafka",
@@ -85,18 +91,15 @@ func (p *KafkaProducer) SendLargeTransferEvent(ctx context.Context, event models
 	return nil
 }
 
-// Close закрывает producer
 func (p *KafkaProducer) Close() error {
 	p.log.Info("закрытие kafka producer")
 	return p.producer.Close()
 }
 
-// NoOpProducer - заглушка для случаев, когда Kafka недоступен или отключен
 type NoOpProducer struct {
 	log *slog.Logger
 }
 
-// NewNoOpProducer создает no-op producer
 func NewNoOpProducer(log *slog.Logger) Producer {
 	return &NoOpProducer{log: log}
 }

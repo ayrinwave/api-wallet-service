@@ -12,19 +12,16 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-// ExchangeRatesResponse структура для ответа с курсами валют
 type ExchangeRatesResponse struct {
-	Rates map[string]float64 // USD: 1.0, RUB: 95.5, EUR: 0.92
+	Rates map[string]float64
 }
 
-// ExchangeRateResponse структура для ответа с курсом для конкретной пары
 type ExchangeRateResponse struct {
 	FromCurrency string
 	ToCurrency   string
 	Rate         float64
 }
 
-// ExchangerClient интерфейс для работы с gRPC сервисом exchanger
 type ExchangerClient interface {
 	GetExchangeRates(ctx context.Context) (*ExchangeRatesResponse, error)
 	GetExchangeRateForCurrency(ctx context.Context, from, to string) (*ExchangeRateResponse, error)
@@ -33,18 +30,16 @@ type ExchangerClient interface {
 
 type grpcExchangerClient struct {
 	conn    *grpc.ClientConn
-	client  pb.ExchangeServiceClient // Раскомментируйте после генерации proto
+	client  pb.ExchangeServiceClient
 	timeout time.Duration
 	log     *slog.Logger
 }
 
-// NewExchangerClient создает новый gRPC клиент для exchanger
 func NewExchangerClient(addr string, timeout time.Duration, log *slog.Logger) (ExchangerClient, error) {
 	const op = "grpc_client.NewExchangerClient"
 
 	log.Info("подключение к gRPC exchanger сервису", slog.String("addr", addr))
 
-	// Устанавливаем соединение с gRPC сервером
 	conn, err := grpc.NewClient(
 		addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -53,7 +48,7 @@ func NewExchangerClient(addr string, timeout time.Duration, log *slog.Logger) (E
 		return nil, fmt.Errorf("%s: failed to connect: %w", op, err)
 	}
 
-	client := pb.NewExchangeServiceClient(conn) // Раскомментируйте после генерации proto
+	client := pb.NewExchangeServiceClient(conn)
 
 	log.Info("успешное подключение к exchanger сервису")
 
@@ -65,7 +60,6 @@ func NewExchangerClient(addr string, timeout time.Duration, log *slog.Logger) (E
 	}, nil
 }
 
-// GetExchangeRates получает все курсы валют
 func (c *grpcExchangerClient) GetExchangeRates(ctx context.Context) (*ExchangeRatesResponse, error) {
 	const op = "grpc_client.GetExchangeRates"
 
@@ -82,7 +76,6 @@ func (c *grpcExchangerClient) GetExchangeRates(ctx context.Context) (*ExchangeRa
 
 	c.log.Debug("получены курсы валют", slog.Any("rates", resp.Rates))
 
-	// Конвертируем map[string]float32 → map[string]float64
 	rates := make(map[string]float64)
 	for currency, rate := range resp.Rates {
 		rates[currency] = float64(rate)
@@ -93,7 +86,6 @@ func (c *grpcExchangerClient) GetExchangeRates(ctx context.Context) (*ExchangeRa
 	}, nil
 }
 
-// GetExchangeRateForCurrency получает курс для конкретной пары валют
 func (c *grpcExchangerClient) GetExchangeRateForCurrency(ctx context.Context, from, to string) (*ExchangeRateResponse, error) {
 	const op = "grpc_client.GetExchangeRateForCurrency"
 
@@ -129,7 +121,6 @@ func (c *grpcExchangerClient) GetExchangeRateForCurrency(ctx context.Context, fr
 	}, nil
 }
 
-// Close закрывает соединение с gRPC сервером
 func (c *grpcExchangerClient) Close() error {
 	c.log.Info("закрытие соединения с exchanger сервисом")
 	return c.conn.Close()

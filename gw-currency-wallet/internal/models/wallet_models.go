@@ -10,9 +10,9 @@ import (
 type Wallet struct {
 	ID        uuid.UUID `json:"id" db:"id"`
 	UserID    uuid.UUID `json:"user_id" db:"user_id"`
-	Currency  string    `json:"currency" db:"currency"` // USD, RUB, EUR
-	Balance   int64     `json:"balance" db:"balance"`   // Хранится в минимальных единицах (центы, копейки)
-	Version   int64     `json:"version" db:"version"`   // Для optimistic locking (если понадобится)
+	Currency  string    `json:"currency" db:"currency"`
+	Balance   int64     `json:"balance" db:"balance"`
+	Version   int64     `json:"version" db:"version"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
 }
@@ -56,16 +56,16 @@ type WalletOperationRequest struct {
 
 // UserBalanceResponse ответ с балансами пользователя по всем валютам
 type UserBalanceResponse struct {
-	USD float64 `json:"USD"` // В долларах (с копейками)
-	RUB float64 `json:"RUB"` // В рублях (с копейками)
-	EUR float64 `json:"EUR"` // В евро (с центами)
+	USD float64 `json:"USD"`
+	RUB float64 `json:"RUB"`
+	EUR float64 `json:"EUR"`
 }
 
 // DepositRequest запрос на пополнение
 type DepositRequest struct {
-	Amount    float64  `json:"amount"`    // Сумма в основных единицах (10.50 USD)
-	Currency  Currency `json:"currency"`  // USD, RUB, EUR
-	RequestID string   `json:"requestID"` // Для идемпотентности
+	Amount    float64  `json:"amount"`
+	Currency  Currency `json:"currency"`
+	RequestID string   `json:"requestID"`
 }
 
 // WithdrawRequest запрос на вывод средств
@@ -81,16 +81,12 @@ type BalanceOperationResponse struct {
 	NewBalance UserBalanceResponse `json:"new_balance"`
 }
 
-// Helper функции для конвертации между float64 (API) и int64 (БД)
-
 // AmountToMinorUnits конвертирует сумму в основных единицах в минимальные единицы
-// Например: 10.50 USD -> 1050 центов
 func AmountToMinorUnits(amount float64) int64 {
 	return int64(amount * 100)
 }
 
 // AmountFromMinorUnits конвертирует минимальные единицы в основные
-// Например: 1050 центов -> 10.50 USD
 func AmountFromMinorUnits(amount int64) float64 {
 	return float64(amount) / 100.0
 }

@@ -25,10 +25,6 @@ func NewWalletHandler(service service.Wallet) *WalletHandler {
 	}
 }
 
-// ========== СТАРЫЕ HANDLERS (для совместимости) ==========
-
-// GetWalletByID получает кошелек по ID
-// GET /api/v1/wallets/{walletID}
 func (h *WalletHandler) GetWalletByID(w http.ResponseWriter, r *http.Request) {
 	const op = "handler.GetWalletByID"
 	log := middlew.GetLogger(r.Context())
@@ -57,8 +53,6 @@ func (h *WalletHandler) GetWalletByID(w http.ResponseWriter, r *http.Request) {
 	response.WriteJSONSuccess(w, log, http.StatusOK, wallet)
 }
 
-// UpdateBalance обновляет баланс кошелька (старый метод)
-// POST /api/v1/wallet
 func (h *WalletHandler) UpdateBalance(w http.ResponseWriter, r *http.Request) {
 	const op = "handler.UpdateBalance"
 	log := middlew.GetLogger(r.Context())
@@ -72,7 +66,6 @@ func (h *WalletHandler) UpdateBalance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Валидация
 	if req.WalletID == uuid.Nil {
 		log.Warn("walletID is required", slog.String("op", op))
 		response.WriteJSONError(w, log, http.StatusBadRequest, "invalid_field", "walletID is required and must be valid UUID")
@@ -125,8 +118,6 @@ func (h *WalletHandler) UpdateBalance(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ========== НОВЫЕ HANDLERS (мультивалютность) ==========
-
 // GetBalance godoc
 // @Summary      Получить баланс пользователя
 // @Description  Возвращает баланс по всем валютам (USD, RUB, EUR)
@@ -141,7 +132,6 @@ func (h *WalletHandler) GetBalance(w http.ResponseWriter, r *http.Request) {
 	const op = "handler.GetBalance"
 	log := middlew.GetLogger(r.Context())
 
-	// Извлекаем userID из контекста (добавлен JWT middleware)
 	userID, err := middlew.GetUserID(r.Context())
 	if err != nil {
 		log.Error("failed to get user ID from context", slog.String("op", op))
@@ -158,7 +148,6 @@ func (h *WalletHandler) GetBalance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Формируем ответ согласно спецификации
 	responseData := map[string]interface{}{
 		"balance": balances,
 	}
@@ -184,7 +173,6 @@ func (h *WalletHandler) Deposit(w http.ResponseWriter, r *http.Request) {
 
 	defer r.Body.Close()
 
-	// Извлекаем userID из контекста
 	userID, err := middlew.GetUserID(r.Context())
 	if err != nil {
 		log.Error("failed to get user ID from context", slog.String("op", op))
@@ -205,7 +193,6 @@ func (h *WalletHandler) Deposit(w http.ResponseWriter, r *http.Request) {
 		slog.Float64("amount", req.Amount),
 		slog.String("currency", string(req.Currency)))
 
-	// Валидация
 	if req.Amount <= 0 {
 		log.Warn("amount must be positive", slog.String("op", op))
 		response.WriteJSONError(w, log, http.StatusBadRequest, "invalid_amount", "Amount must be positive")
@@ -230,7 +217,7 @@ func (h *WalletHandler) Deposit(w http.ResponseWriter, r *http.Request) {
 			response.WriteJSONError(w, log, http.StatusNotFound, "not_found", "Wallet not found")
 		case errors.Is(err, custom_err.ErrDuplicateRequest):
 			log.Info("operation already processed", slog.String("op", op))
-			// Получаем текущий баланс для идемпотентного ответа
+
 			balances, _ := h.service.GetUserBalance(r.Context(), userID)
 			response.WriteJSONSuccess(w, log, http.StatusOK, map[string]interface{}{
 				"message":     "Account topped up successfully",
@@ -270,7 +257,6 @@ func (h *WalletHandler) Withdraw(w http.ResponseWriter, r *http.Request) {
 
 	defer r.Body.Close()
 
-	// Извлекаем userID из контекста
 	userID, err := middlew.GetUserID(r.Context())
 	if err != nil {
 		log.Error("failed to get user ID from context", slog.String("op", op))
@@ -291,7 +277,6 @@ func (h *WalletHandler) Withdraw(w http.ResponseWriter, r *http.Request) {
 		slog.Float64("amount", req.Amount),
 		slog.String("currency", string(req.Currency)))
 
-	// Валидация
 	if req.Amount <= 0 {
 		log.Warn("amount must be positive", slog.String("op", op))
 		response.WriteJSONError(w, log, http.StatusBadRequest, "invalid_amount", "Amount must be positive")
@@ -319,7 +304,6 @@ func (h *WalletHandler) Withdraw(w http.ResponseWriter, r *http.Request) {
 			response.WriteJSONError(w, log, http.StatusBadRequest, "insufficient_funds", "Insufficient funds in the wallet")
 		case errors.Is(err, custom_err.ErrDuplicateRequest):
 			log.Info("operation already processed", slog.String("op", op))
-			// Получаем текущий баланс для идемпотентного ответа
 			balances, _ := h.service.GetUserBalance(r.Context(), userID)
 			response.WriteJSONSuccess(w, log, http.StatusOK, map[string]interface{}{
 				"message":     "Withdrawal successful",

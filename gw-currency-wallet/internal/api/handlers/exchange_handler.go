@@ -36,7 +36,6 @@ func (h *ExchangeHandler) GetExchangeRates(w http.ResponseWriter, r *http.Reques
 	const op = "handler.GetExchangeRates"
 	log := middlew.GetLogger(r.Context())
 
-	// Извлекаем userID (JWT middleware уже проверил)
 	userID, err := middlew.GetUserID(r.Context())
 	if err != nil {
 		log.Error("failed to get user ID from context", slog.String("op", op))
@@ -53,7 +52,6 @@ func (h *ExchangeHandler) GetExchangeRates(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Формируем ответ согласно спецификации
 	responseData := models.ExchangeRatesResponse{
 		Rates: rates,
 	}
@@ -79,7 +77,6 @@ func (h *ExchangeHandler) ExchangeCurrency(w http.ResponseWriter, r *http.Reques
 
 	defer r.Body.Close()
 
-	// Извлекаем userID из контекста
 	userID, err := middlew.GetUserID(r.Context())
 	if err != nil {
 		log.Error("failed to get user ID from context", slog.String("op", op))
@@ -101,7 +98,6 @@ func (h *ExchangeHandler) ExchangeCurrency(w http.ResponseWriter, r *http.Reques
 		slog.String("to", string(req.ToCurrency)),
 		slog.Float64("amount", req.Amount))
 
-	// Валидация
 	if !req.FromCurrency.IsValid() {
 		log.Warn("invalid from_currency", slog.String("op", op))
 		response.WriteJSONError(w, log, http.StatusBadRequest, "invalid_currency", "Invalid from_currency")

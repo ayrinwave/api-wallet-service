@@ -13,7 +13,7 @@ import (
 )
 
 type AuthHandler struct {
-	service service.Auth // ← Используем интерфейс вместо конкретного типа
+	service service.Auth
 }
 
 func NewAuthHandler(service service.Auth) *AuthHandler {
@@ -63,7 +63,6 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Дополнительная валидация
 	if len(req.Username) < 3 || len(req.Username) > 50 {
 		response.WriteJSONError(w, log, http.StatusBadRequest, "invalid_field", "username must be between 3 and 50 characters")
 		return
@@ -124,7 +123,6 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Валидация
 	if req.Username == "" {
 		log.Warn("username is required", slog.String("op", op))
 		response.WriteJSONError(w, log, http.StatusBadRequest, "invalid_field", "username is required")

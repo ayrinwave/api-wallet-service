@@ -41,7 +41,6 @@ type App struct {
 func NewApp() (*App, error) {
 	loggerWithFile := logger.NewLoggerWithFile("wallet.log")
 	log := loggerWithFile.Logger
-
 	log.Info("инициализация приложения")
 
 	cfg, err := config.NewConfig()
@@ -56,13 +55,21 @@ func NewApp() (*App, error) {
 	}
 	log.Info("миграции успешно применены")
 
-	pool, err := db.NewPool(context.Background(), cfg.DB.DSN())
+	poolCfg := db.PoolConfig{
+		MaxConns:          200,
+		MinConns:          10,
+		HealthCheckPeriod: 30 * time.Second,
+		PoolTimeout:       5 * time.Second,
+		RetryAttempts:     5,
+		RetryDelay:        1 * time.Second,
+	}
+
+	pool, err := db.NewPool(context.Background(), cfg.DB.DSN(), poolCfg)
 	if err != nil {
-		return nil, fmt.Errorf("ошибка подключения к базе данных: %w", err)
+		return nil, fmt.Errorf("не удалось подключиться к базе данных: %w", err)
 	}
 	log.Info("подключение к базе данных установлено")
 
-	// ✅ Инициализация gRPC client
 	log.Info("подключение к gRPC exchanger сервису", slog.String("addr", cfg.GRPC.ExchangerAddr))
 	grpcClient, err := grpc_client.NewExchangerClient(cfg.GRPC.ExchangerAddr, cfg.GRPC.Timeout, log)
 	if err != nil {
@@ -70,7 +77,6 @@ func NewApp() (*App, error) {
 	}
 	log.Info("gRPC client инициализирован")
 
-	// ✅ Инициализация Kafka producer
 	var kafkaProducer kafka.Producer
 	if cfg.Kafka.Enabled {
 		log.Info("инициализация kafka producer", slog.Any("brokers", cfg.Kafka.Brokers))
@@ -86,13 +92,10 @@ func NewApp() (*App, error) {
 
 	srv := server.NewServer(cfg.HTTPPort)
 	log.Info("сервер инициализирован", slog.String("port", cfg.HTTPPort))
-
-	// Middlewares
 	srv.Router.Use(middleware.RequestID)
 	srv.Router.Use(middlew.WithLogger(log))
 	srv.Router.Use(middleware.RealIP)
 	srv.Router.Use(middleware.Recoverer)
-
 	srv.RegisterSwagger()
 
 	return &App{
@@ -106,7 +109,6 @@ func NewApp() (*App, error) {
 	}, nil
 }
 
-// BuildAuthLayer собирает слой аутентификации и регистрации
 func (a *App) BuildAuthLayer() {
 	txManager := service.NewPgxTxManager(a.pool)
 	userRepo := postgres.NewUserRepository(a.pool)
@@ -123,18 +125,17 @@ func (a *App) BuildAuthLayer() {
 
 	authHandler := handlers.NewAuthHandler(a.authService)
 
-	// Публичные маршруты (без JWT)
 	a.server.Router.Post("/api/v1/register", authHandler.Register)
 	a.server.Router.Post("/api/v1/login", authHandler.Login)
 
 	a.log.Info("слой 'auth' собран и маршруты зарегистрированы")
 }
 
-// BuildWalletLayer собирает слой работы с кошельками
-func (a *App) BuildWalletLayer() {
+func (a *App) BuildWalletLayer() error {
 	if a.authService == nil {
-		a.log.Error("authService not initialized, call BuildAuthLayer first")
-		panic("authService not initialized")
+		err := errors.New("authService not initialized, call BuildAuthLayer first")
+		a.log.Error(err.Error())
+		return err
 	}
 
 	txManager := service.NewPgxTxManager(a.pool)
@@ -142,12 +143,9 @@ func (a *App) BuildWalletLayer() {
 	walletService := service.NewWalletService(walletRepo, txManager)
 	walletHandler := handlers.NewWalletHandler(walletService)
 
-	// Защищенные маршруты (требуют JWT)
 	a.server.Router.Group(func(r chi.Router) {
-		// Применяем middleware для проверки JWT
 		r.Use(middlew.RequireAuth(a.authService))
 
-		// Wallet endpoints
 		r.Get("/api/v1/wallets/{walletID}", walletHandler.GetWalletByID)
 		r.Post("/api/v1/wallet", walletHandler.UpdateBalance)
 		r.Get("/api/v1/balance", walletHandler.GetBalance)
@@ -156,39 +154,40 @@ func (a *App) BuildWalletLayer() {
 	})
 
 	a.log.Info("слой 'wallet' собран и маршруты зарегистрированы")
+	return nil
 }
 
-// BuildExchangeLayer собирает слой обмена валют
-func (a *App) BuildExchangeLayer() {
+func (a *App) BuildExchangeLayer() error {
 	if a.authService == nil {
-		a.log.Error("authService not initialized, call BuildAuthLayer first")
-		panic("authService not initialized")
+		err := errors.New("authService not initialized, call BuildAuthLayer first")
+		a.log.Error(err.Error())
+		return err
 	}
 	if a.exchangeClient == nil {
-		a.log.Error("exchangeClient not initialized")
-		panic("exchangeClient not initialized")
+		err := errors.New("exchangeClient not initialized")
+		a.log.Error(err.Error())
+		return err
 	}
 	if a.kafkaProducer == nil {
-		a.log.Error("kafkaProducer not initialized")
-		panic("kafkaProducer not initialized")
+		err := errors.New("kafkaProducer not initialized")
+		a.log.Error(err.Error())
+		return err
 	}
 
 	txManager := service.NewPgxTxManager(a.pool)
 	walletRepo := postgres.NewWalletRepository(a.pool)
 
-	// Создаем Exchange Service с кэшированием на 5 минут
 	exchangeService := service.NewExchangeService(
 		walletRepo,
 		txManager,
 		a.exchangeClient,
-		a.kafkaProducer, // ← Добавляем Kafka producer
-		5*time.Minute,   // Cache expiration
+		a.kafkaProducer,
+		5*time.Minute,
 		a.log,
 	)
 
 	exchangeHandler := handlers.NewExchangeHandler(exchangeService)
 
-	// Защищенные маршруты (требуют JWT)
 	a.server.Router.Group(func(r chi.Router) {
 		r.Use(middlew.RequireAuth(a.authService))
 
@@ -197,6 +196,7 @@ func (a *App) BuildExchangeLayer() {
 	})
 
 	a.log.Info("слой 'exchange' собран и маршруты зарегистрированы")
+	return nil
 }
 
 func (a *App) Run() error {

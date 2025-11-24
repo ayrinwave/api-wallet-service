@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// LargeTransferEvent событие о крупном денежном переводе (>= 30000)
+// событие о крупном денежном переводе (>= 30000)
 type LargeTransferEvent struct {
 	TransactionID string    `json:"transaction_id"`   // Уникальный ID транзакции
 	UserID        uuid.UUID `json:"user_id"`          // ID пользователя
